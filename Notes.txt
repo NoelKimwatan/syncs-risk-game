@@ -1,0 +1,33 @@
+
+
+game.state.me:
+    player_id=4 team_id=4 troops_remaining=3 alive=True cards=[] must_place_territory_bonus=[]
+
+    Example: 
+        player_id=4 team_id=4 troops_remaining=14 alive=True cards=[CardModel(card_id=11, territory_id=11, symbol='Artillery'), CardModel(card_id=24, territory_id=24, symbol='Infantry'), CardModel(card_id=38, territory_id=38, symbol='Artillery'), CardModel(card_id=14, territory_id=14, symbol='Cavalry')] must_place_territory_bonus=[]
+
+
+
+game.state:
+    Functions:
+        1. get_card_set
+        2. get_territories_owned_by
+        3. get_all_border_territories
+        4. get_all_adjacent_territories
+    
+    Attributes:
+        1. map:
+            Map Attributes:
+                Game map:  ['__class__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__', '__weakref__', '_check_graph_validity', '_continent_bonuses', '_continents', '_edges', '_vertex_names', '_vertices', 'get_adjacent_to', 'get_continent_bonus', 'get_continents', 'get_vertex_name', 'get_vertices', 'is_adjacent']
+        2. cards
+        3. deck_card_count
+        4. discarded_deck
+        5. players
+        6. territories
+        7. card_sets_redeemed
+        8. turn_order
+        9. recording
+        10.new_records
+        11.me
+
+

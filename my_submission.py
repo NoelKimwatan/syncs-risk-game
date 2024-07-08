@@ -42,11 +42,10 @@ def main():
     # Respond to the engine's queries with your moves.
     while True:
 
-        
 
         # Get the engine's query (this will block until you receive a query).
         query = game.get_next_query()
-        #print("Player: {}".format(game.state.me.player_id))
+        #print("Player: {}".format(game.state.me.player_id),flush=True)
 
         # Based on the type of query, respond with the correct move.
         def choose_move(query: QueryType) -> MoveType:
@@ -122,6 +121,8 @@ def handle_place_initial_troop(game: Game, bot_state: BotState, query: QueryPlac
     border_territory_models = [game.state.territories[x] for x in border_territories]
     min_troops_territory = min(border_territory_models, key=lambda x: x.troops)
 
+    
+
     return game.move_place_initial_troop(query, min_troops_territory.territory_id)
 
 
@@ -136,8 +137,10 @@ def handle_redeem_cards(game: Game, bot_state: BotState, query: QueryRedeemCards
     card_sets: list[Tuple[CardModel, CardModel, CardModel]] = []
     cards_remaining = game.state.me.cards.copy()
 
+    #Before redeem cards when greater than 5
     while len(cards_remaining) >= 5:
         card_set = game.state.get_card_set(cards_remaining)
+
         # According to the pigeonhole principle, we should always be able to make a set
         # of cards if we have at least 5 cards.
         assert card_set != None
@@ -146,7 +149,16 @@ def handle_redeem_cards(game: Game, bot_state: BotState, query: QueryRedeemCards
 
     # Remember we can't redeem any more than the required number of card sets if 
     # we have just eliminated a player.
-    if game.state.card_sets_redeemed > 12 and query.cause == "turn_started":
+
+    # if game.state.card_sets_redeemed > 12 and query.cause == "turn_started":
+    #     card_set = game.state.get_card_set(cards_remaining)
+    #     while card_set != None:
+    #         card_sets.append(card_set)
+    #         cards_remaining = [card for card in cards_remaining if card not in card_set]
+    #         card_set = game.state.get_card_set(cards_remaining)
+
+    ## Change and start redeeming cards whenever we have more than 3 cards
+    if query.cause == "turn_started":
         card_set = game.state.get_card_set(cards_remaining)
         while card_set != None:
             card_sets.append(card_set)
