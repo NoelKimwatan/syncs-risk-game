@@ -242,11 +242,12 @@ def handle_place_initial_troop(game: Game, bot_state: BotState, query: QueryPlac
     # We will place a troop in the border territory with the least troops currently
     # on it. This should give us close to an equal distribution.
     border_territory_models = [game.state.territories[x] for x in border_territories_home_base]
-    min_troops_territory = min(border_territory_models, key=lambda x: x.troops)
+    #min_troops_territory = min(border_territory_models, key=lambda x: x.troops)
+    max_troops_territory = max(border_territory_models, key=lambda x: x.troops)
 
     
 
-    return game.move_place_initial_troop(query, min_troops_territory.territory_id)
+    return game.move_place_initial_troop(query, max_troops_territory.territory_id)
 
 
 def handle_redeem_cards(game: Game, bot_state: BotState, query: QueryRedeemCards) -> MoveRedeemCards:
