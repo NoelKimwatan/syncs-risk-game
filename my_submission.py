@@ -121,8 +121,8 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
         #Give each preffered territory a weight
         def territorySelectionPreference(territory):
             territoryWeight = {
-                37: 10, #South Africa is the most preffered
-                28: 9,  #Followed by South America
+                28: 10, #South Africa is the most preffered
+                37: 9,  #Followed by South America
                 41: 8,  #Followed by Western Ausralia
                 38: 8   #Finally Eastern Australia
             }
@@ -214,11 +214,11 @@ def handle_place_initial_troop(game: Game, bot_state: BotState, query: QueryPlac
 
     my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
 
-    # print("-------------------------------------------------------------------------------------------------",flush=True)
-    # print("Mt territories: ",my_territories)
+    print("-------------------------------------------------------------------------------------------------",flush=True)
+    print("Mt territories: ",my_territories)
     home_base_territories = get_home_base_territories(game,home_base)
-    # print("Home base territories: ",home_base_territories,flush=True)
-    # print("-------------------------------------------------------------------------------------------------",flush=True)
+    print("Home base territories: ",home_base_territories,flush=True)
+    print("-------------------------------------------------------------------------------------------------",flush=True)
     
     # We will place troops along the territories on our border.
     all_border_territories = game.state.get_all_border_territories(
