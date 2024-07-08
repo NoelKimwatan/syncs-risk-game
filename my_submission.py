@@ -212,9 +212,6 @@ def get_home_base_territories(game:Game, home_base:int):
     return list(home_base_territories)
                 
 
-    
-
-
 
 
 
@@ -239,15 +236,28 @@ def handle_place_initial_troop(game: Game, bot_state: BotState, query: QueryPlac
     #Place troops in border territories on home base
     border_territories_home_base = list(set(home_base_territories) & set(all_border_territories))
     
-    # We will place a troop in the border territory with the least troops currently
-    # on it. This should give us close to an equal distribution.
-    border_territory_models = [game.state.territories[x] for x in border_territories_home_base]
-    #min_troops_territory = min(border_territory_models, key=lambda x: x.troops)
-    max_troops_territory = max(border_territory_models, key=lambda x: x.troops)
+    # # We will place a troop in the border territory with the least troops currently
+    # # on it. This should give us close to an equal distribution.
+    # border_territory_models = [game.state.territories[x] for x in border_territories_home_base]
+    # #min_troops_territory = min(border_territory_models, key=lambda x: x.troops)
+    # max_troops_territory = max(border_territory_models, key=lambda x: x.troops)
+
+    def max_adjuscent_troops(territory):
+        adjuscent_territories = game.state.map.get_adjacent_to(territory)
+        my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+
+        adjuscent_territories_non_friendly = list(set(adjuscent_territories) - set(my_territories))
+        adjuscent_troops = [game.state.territories[x].troops  for x in adjuscent_territories_non_friendly ]
+
+        print("Adjuscent troops: ",adjuscent_troops)
+        return  max(adjuscent_troops)
+
+    border_territories_home_base = sorted(border_territories_home_base,key=max_adjuscent_troops,reverse=True)
 
     
 
-    return game.move_place_initial_troop(query, max_troops_territory.territory_id)
+    #return game.move_place_initial_troop(query, max_troops_territory.territory_id)
+    return game.move_place_initial_troop(query, border_territories_home_base[0])
 
 
 def handle_redeem_cards(game: Game, bot_state: BotState, query: QueryRedeemCards) -> MoveRedeemCards:
