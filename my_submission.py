@@ -107,8 +107,14 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
 
         # We will pick the one with the most connections to our territories
         # this should make our territories clustered together a little bit.
-        def count_adjacent_friendly(x: int) -> int:
-            return len(set(my_territories) & set(game.state.map.get_adjacent_to(x)))
+        # def count_adjacent_friendly(x: int) -> int:
+        #     return len(set(my_territories) & set(game.state.map.get_adjacent_to(x)))
+
+        # selected_territory = sorted(available, key=lambda x: count_adjacent_friendly(x), reverse=True)[0]
+
+        #Pick territory that most of its territories are friendly
+        def count_adjacent_friendly(x: int) -> float:
+            return len(set(my_territories) & set(game.state.map.get_adjacent_to(x))) / len(game.state.map.get_adjacent_to(x))
 
         selected_territory = sorted(available, key=lambda x: count_adjacent_friendly(x), reverse=True)[0]
     
@@ -189,9 +195,14 @@ def get_home_base_territories(game:Game, home_base:int):
     home_base_territories = set()
 
     def get_adjuscent_owned_territories(territory):
-        adjuscent_owned_territories = list(set(my_territories) & set(game.state.map.get_adjacent_to(territory)))
+        adjuscent = game.state.map.get_adjacent_to(territory)
+        adjuscent.append(territory)
+        adjuscent_owned_territories = list(set(my_territories) & set(adjuscent))
+        print("Adjuscent owned territories: ",adjuscent_owned_territories,flush=True)
+
         for territory in adjuscent_owned_territories:
             if territory not in home_base_territories and territory not in checked:
+                print("Territory: {} Not in adjuscent or checked".format(territory))
                 home_base_territories.add(territory)
                 checked.append(territory)
                 get_adjuscent_owned_territories(territory)
