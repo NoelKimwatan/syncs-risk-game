@@ -25,11 +25,15 @@ from risk_shared.records.moves.move_troops_after_attack import MoveTroopsAfterAt
 from risk_shared.records.record_attack import RecordAttack
 from risk_shared.records.types.move_type import MoveType
 
+#Homabase
+home_base = -1
 
 # We will store our enemy in the bot state.
 class BotState():
     def __init__(self):
         self.enemy: Optional[int] = None
+
+
 
 
 def main():
@@ -38,6 +42,10 @@ def main():
     # track the state of the game.
     game = Game()
     bot_state = BotState()
+
+
+
+
    
     # Respond to the engine's queries with your moves.
     while True:
@@ -46,6 +54,7 @@ def main():
         # Get the engine's query (this will block until you receive a query).
         query = game.get_next_query()
         #print("Player: {}".format(game.state.me.player_id),flush=True)
+
 
         # Based on the type of query, respond with the correct move.
         def choose_move(query: QueryType) -> MoveType:
@@ -107,23 +116,121 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
     else:
         #selected_territory = sorted(unclaimed_territories, key=lambda x: len(game.state.map.get_adjacent_to(x)), reverse=True)[0]
         #Change to select territory with the least amount of territories bordering it
-        selected_territory = sorted(unclaimed_territories, key=lambda x: len(game.state.map.get_adjacent_to(x)))[0]
+        #Change to start by selecting a position in either Africa, South Ameria or Australia
 
+        #Give each preffered territory a weight
+        def territorySelectionPreference(territory):
+            territoryWeight = {
+                37: 10, #South Africa is the most preffered
+                28: 9,  #Followed by South America
+                41: 8,  #Followed by Western Ausralia
+                38: 8   #Finally Eastern Australia
+            }
+            return territoryWeight[territory]
+        
+        preferredStartingPoint = [28,37,38,41]
+        prefferedAvailable = list(set(preferredStartingPoint) & set(unclaimed_territories))
+        
+        if len(prefferedAvailable) != 0:
+            prefferedAvailable = sorted(prefferedAvailable,key=territorySelectionPreference,reverse=True)
+            selected_territory = prefferedAvailable[0]
+            #print("Preffered territory available",flush=True)
+        else:
+            selected_territory = sorted(unclaimed_territories, key=lambda x: len(game.state.map.get_adjacent_to(x)))[0]
+            #print("Preffered territory NOT available",flush=True)
+
+
+        if len(my_territories) == 0:
+            global home_base
+            home_base = selected_territory
+            print("Home base is: ",home_base,flush=True)
+        
+        #print("Selected territory: ",selected_territory,flush=True)
+        
     return game.move_claim_territory(query, selected_territory)
+
+# def connected_to_base(game:Game,territories:list,checked:list):
+#     territories_connected_to_base = set()
+#     my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+
+#     for territory in territories:
+#         adjuscent_territories = game.state.map.get_adjacent_to(territory)
+#         adjuscent_territories_owned = list(set(adjuscent_territories) & set(my_territories))
+#         checked.append(territory)
+
+#         if home_base in adjuscent_territories_owned:
+#             territories_connected_to_base.add(territory)
+#         else:
+#             if len(adjuscent_territories_owned) != 0:
+#                 connected_to_base(game,adjuscent_territories_owned)
+
+#     return list(territories_connected_to_base)
+
+# def get_home_base_territories(game: Game, home_base: int,home_base_territories:set, checked: list):
+#     my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+#     adjuscent_territories = game.state.map.get_adjacent_to(home_base)
+
+#     adjuscent_owned_territories = list(set(my_territories) & set(adjuscent_territories))
+
+#     for territory in adjuscent_owned_territories:
+#         if territory not in home_base_territories and territory not in checked:
+#             home_base_territories.add(territory)
+#             checked.append(territory)
+#             get_home_base_territories(game,territory,home_base_territories,checked)
+#         else:
+#             checked.append(territory)
+
+#     print("Home base territories:",home_base_territories)
+
+
+def get_home_base_territories(game:Game, home_base:int):
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    checked = list()
+    home_base_territories = set()
+
+    def get_adjuscent_owned_territories(territory):
+        adjuscent_owned_territories = list(set(my_territories) & set(game.state.map.get_adjacent_to(territory)))
+        for territory in adjuscent_owned_territories:
+            if territory not in home_base_territories and territory not in checked:
+                home_base_territories.add(territory)
+                checked.append(territory)
+                get_adjuscent_owned_territories(territory)
+
+    get_adjuscent_owned_territories(home_base)
+
+    return list(home_base_territories)
+                
+
+    
+
+
+
+
 
 
 def handle_place_initial_troop(game: Game, bot_state: BotState, query: QueryPlaceInitialTroop) -> MovePlaceInitialTroop:
     """After all the territories have been claimed, you can place a single troop on one
     of your territories each turn until each player runs out of troops."""
+
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+
+    # print("-------------------------------------------------------------------------------------------------",flush=True)
+    # print("Mt territories: ",my_territories)
+    home_base_territories = get_home_base_territories(game,home_base)
+    # print("Home base territories: ",home_base_territories,flush=True)
+    # print("-------------------------------------------------------------------------------------------------",flush=True)
     
     # We will place troops along the territories on our border.
-    border_territories = game.state.get_all_border_territories(
+    all_border_territories = game.state.get_all_border_territories(
         game.state.get_territories_owned_by(game.state.me.player_id)
     )
 
+    #Place troops in border territories on home base
+    border_territories_home_base = list(set(home_base_territories) & set(all_border_territories))
+    
     # We will place a troop in the border territory with the least troops currently
     # on it. This should give us close to an equal distribution.
-    border_territory_models = [game.state.territories[x] for x in border_territories]
+    border_territory_models = [game.state.territories[x] for x in border_territories_home_base]
     min_troops_territory = min(border_territory_models, key=lambda x: x.troops)
 
     
