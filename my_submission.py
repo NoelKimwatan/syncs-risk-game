@@ -84,13 +84,16 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
 
     unclaimed_territories = game.state.get_territories_owned_by(None)
     my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    #print("My territories: ",my_territories,flush=True)
 
     # We will try to always pick new territories that are next to ones that we own,
     # or a random one if that isn't possible.
     adjacent_territories = game.state.get_all_adjacent_territories(my_territories)
+    #print("Adjacent territories: ",adjacent_territories,flush=True)
 
     # We can only pick from territories that are unclaimed and adjacent to us.
     available = list(set(unclaimed_territories) & set(adjacent_territories))
+    #print("Available territories: ",available)
     if len(available) != 0:
 
         # We will pick the one with the most connections to our territories
@@ -102,7 +105,9 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
     
     # Or if there are no such territories, we will pick just an unclaimed one with the greatest degree.
     else:
-        selected_territory = sorted(unclaimed_territories, key=lambda x: len(game.state.map.get_adjacent_to(x)), reverse=True)[0]
+        #selected_territory = sorted(unclaimed_territories, key=lambda x: len(game.state.map.get_adjacent_to(x)), reverse=True)[0]
+        #Change to select territory with the least amount of territories bordering it
+        selected_territory = sorted(unclaimed_territories, key=lambda x: len(game.state.map.get_adjacent_to(x)))[0]
 
     return game.move_claim_territory(query, selected_territory)
 
