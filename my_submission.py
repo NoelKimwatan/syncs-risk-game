@@ -77,7 +77,8 @@ def main():
                     return handle_attack_new(game, bot_state, q)
 
                 case QueryTroopsAfterAttack() as q:
-                    return handle_troops_after_attack(game, bot_state, q)
+                    #return handle_troops_after_attack(game, bot_state, q)
+                    return handle_troops_after_attack_new(game, bot_state, q)
 
                 case QueryDefend() as q:
                     return handle_defend(game, bot_state, q)
@@ -251,12 +252,11 @@ def handle_place_initial_troop_new(game: Game, bot_state: BotState, query: Query
                 border_territory_placement.append((friendly,difference))
 
         border_territory_placement = sorted(border_territory_placement, key=lambda x: x[1],reverse=True)
+        return border_territory_placement
 
     #If there are non abandoned territories
 
     if len(non_abandoned_border) > 0:
-
-
         # for border_t in non_abandoned_border:
         #     adjuscent = game.state.map.get_adjacent_to(border_t)
         #     adjuscent_enemy = list(set(adjuscent) - set(my_territories))
@@ -267,6 +267,7 @@ def handle_place_initial_troop_new(game: Game, bot_state: BotState, query: Query
         #         border_territory_placement.append((border_t,difference))
 
         border_territory_placement = get_enemy_terriroty_troops_difference(non_abandoned_border)
+        print("[handle_place_initial_troop_new] - Non abandoned border territories is greater than 0")
         print("[handle_place_initial_troop_new] - Border territory placement: ",border_territory_placement,flush=True)
 
         if len(border_territory_placement) >=1:
@@ -277,8 +278,22 @@ def handle_place_initial_troop_new(game: Game, bot_state: BotState, query: Query
         
     #If there are no non abandoned territories 
     else:
+        print("[handle_place_initial_troop_new] - Non abandoned border territories is 0")
         home_base_territories = get_home_base_territories(game,home_base)
         home_base_border_territories = list(set(home_base_territories) & set(all_border_territories))
+
+        home_base_border_territory_placement = get_enemy_terriroty_troops_difference(home_base_border_territories)
+
+        print("[handle_place_initial_troop_new] - Home base territories: ",home_base_territories)
+        print("[handle_place_initial_troop_new] - Home base border territories: ",home_base_border_territory_placement)
+
+        if len(home_base_border_territory_placement) >= 1:
+            return game.move_place_initial_troop(query, home_base_border_territory_placement[0][0])
+        else:
+            max_troops = max(home_base_territories,key=lambda x: game.state.territories[x].troops)
+            return game.move_place_initial_troop(query, max_troops)
+
+
 
 
 
@@ -441,6 +456,7 @@ def handle_attack_new(game: Game, bot_state: BotState, query: QueryAttack) -> Un
             candidate_attack = sorted(attack_from_adjuscent_enemies,key=territory_most_surrounded)[0]
             #print("Attacking {} from {} ".format(candidate_attack,attack_from),flush=True)
 
+
             move = game.move_attack(query,attack_from, candidate_attack, min(3, game.state.territories[attack_from].troops - 1))
             return move
         else:
@@ -514,6 +530,33 @@ def handle_attack(game: Game, bot_state: BotState, query: QueryAttack) -> Union[
     return game.move_attack_pass(query)
 
 
+def handle_troops_after_attack_new(game: Game, bot_state: BotState, query: QueryTroopsAfterAttack) -> MoveTroopsAfterAttack:
+    # First we need to get the record that describes the attack, and then the move that specifies
+    # which territory was the attacking territory.
+    record_attack = cast(RecordAttack, game.state.recording[query.record_attack_id])
+    move_attack = cast(MoveAttack, game.state.recording[record_attack.move_attack_id])
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    attacking_territory = move_attack.attacking_territory
+    #defending_territory = move_attack.defending_territory
+
+    attacking_territory_adjuscent = game.state.map.get_adjacent_to(attacking_territory)
+    attacking_territory_adjuscent_enemy = list(set(attacking_territory_adjuscent) - set(my_territories))
+
+    if len(attacking_territory_adjuscent_enemy) == 0:
+        print("[handle_troops_after_attack_new] --> There are no adjuscent enemies",flush=True)
+        #Move max
+        return game.move_troops_after_attack(query, game.state.territories[move_attack.attacking_territory].troops - 1)
+    else:
+        #Move troops less adjuscent enemies max
+        adjuscent_enemies_max_troops = max([ game.state.territories[x].troops for x in attacking_territory_adjuscent_enemy])
+        desired_move_value = game.state.territories[move_attack.attacking_territory].troops - adjuscent_enemies_max_troops
+
+        print("[handle_troops_after_attack_new] --> Territory {} has {} troops. Max enemy adjuscent is {}. Desired move no is {}".format(move_attack.attacking_territory,game.state.territories[move_attack.attacking_territory].troops,adjuscent_enemies_max_troops,desired_move_value),flush=True)
+
+        # We will always move the maximum number of troops we can.
+        
+        return game.move_troops_after_attack(query, max(move_attack.attacking_troops,desired_move_value))
+
 def handle_troops_after_attack(game: Game, bot_state: BotState, query: QueryTroopsAfterAttack) -> MoveTroopsAfterAttack:
     """After conquering a territory in an attack, you must move troops to the new territory."""
     
@@ -571,6 +614,7 @@ def handle_fortify_new(game: Game, bot_state: BotState, query: QueryFortify) -> 
             total_troops_per_player[player.player_id] = sum([game.state.territories[x].troops for x in game.state.get_territories_owned_by(player.player_id)])
 
         most_powerful_players = sorted(total_troops_per_player.items(), key=lambda x: x[1],reverse=True)
+        print("Most powerful players: ",most_powerful_players,flush=True)
 
         # If we are the most powerful, we move inland troops to the location with most troops, if we are not the most powerful player we move towards the most powerful player
         if most_powerful_players[0][0] == game.state.me.player_id:
@@ -582,17 +626,19 @@ def handle_fortify_new(game: Game, bot_state: BotState, query: QueryFortify) -> 
             border_territories_ordered_troops = [(x,game.state.territories[x].troops) for x in border_territories_ordered]
 
 
-            print("Border territory troops: ",border_territories_ordered_troops,flush=True)
+            for inland_territory in inland_territories:
 
-            for border_territory in border_territories_ordered:
-                shortest_path = shortest_connected_path(game,inland_territories[0],border_territory)
-                print("Shortest path between {} and {} is {}".format(inland_territories[0],border_territory,shortest_path))
+                print("Border territory troops: ",border_territories_ordered_troops,flush=True)
 
-                if len(shortest_path) >= 2:
-                    print("----> Moving {} troops from {} to {} towards {}".format(game.state.territories[inland_territories[0]].troops - 1,shortest_path[0],shortest_path[1],border_territory))
-                    return game.move_fortify(query, shortest_path[0], shortest_path[1], game.state.territories[inland_territories[0]].troops - 1)
+                for border_territory in border_territories_ordered:
+                    shortest_path = shortest_connected_path(game,inland_territory,border_territory)
+                    print("Shortest path between {} and {} is {}".format(inland_territory,border_territory,shortest_path))
 
+                    if len(shortest_path) >= 2:
+                        print("----> Moving {} troops from {} to {} towards {}".format(game.state.territories[inland_territory].troops - 1,shortest_path[0],shortest_path[1],border_territory))
+                        return game.move_fortify(query, shortest_path[0], shortest_path[1], game.state.territories[inland_territory].troops - 1)
 
+            print("[handle_fortify_new] --> There is no shortest path")
             #Uf there is no nearby territory, will probably never reach
             return game.move_fortify_pass(query)
         else:

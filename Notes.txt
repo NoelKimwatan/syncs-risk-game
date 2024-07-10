@@ -31,3 +31,7 @@ game.state:
         11.me
 
 
+
+
+
+move_attack: record_type='move_attack' move_by_player=4 attacking_territory=29 defending_territory=30 attacking_troops=3
