@@ -1,6 +1,3 @@
-
-
-
 class risk_probability:
 
     def __init__(self):
@@ -192,4 +189,4 @@ class risk_probability:
         return val
     
 test = risk_probability()
-print(test.battleprob(3,3,2))
+print(test.battleprob(2,1))

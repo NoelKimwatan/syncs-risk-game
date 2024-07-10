@@ -35,3 +35,7 @@ game.state:
 
 
 move_attack: record_type='move_attack' move_by_player=4 attacking_territory=29 defending_territory=30 attacking_troops=3
+
+
+Improvements
+You can dynamically change how many troops you attack a territory with from 3 to less

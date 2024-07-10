@@ -43,6 +43,9 @@ def main():
     game = Game()
     bot_state = BotState()
 
+    global attack_probability_threshold 
+    attack_probability_threshold = 0.75
+
 
 
 
@@ -74,7 +77,8 @@ def main():
 
                 case QueryAttack() as q:
                     #return handle_attack(game, bot_state, q)
-                    return handle_attack_new_new(game, bot_state, q)
+                    #return handle_attack_new_new(game, bot_state, q)
+                    return handle_attack_probability(game, bot_state, q)
 
                 case QueryTroopsAfterAttack() as q:
                     #return handle_troops_after_attack(game, bot_state, q)
@@ -431,6 +435,63 @@ def handle_distribute_troops(game: Game, bot_state: BotState, query: QueryDistri
 
     return game.move_distribute_troops(query, distributions)
 
+def handle_attack_probability(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
+     # We will attack someone.
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    bordering_territories = game.state.get_all_adjacent_territories(my_territories)
+    
+    #Attack from territory with the most troops
+    my_territory_sorted = sorted(my_territories, key= lambda x: game.state.territories[x].troops,reverse=True )
+
+    #We will decide on the territory to attack using the probability equation
+
+    for attack_from in my_territory_sorted:
+        #Attack territory with mostly surrounded by my territories
+        attack_from_adjuscent = game.state.map.get_adjacent_to(attack_from)
+        attack_from_adjuscent_enemies = list(set(attack_from_adjuscent) - set(my_territories))
+
+        #Only try to attack if attack from territory has atleast 3 troops
+        if game.state.territories[attack_from].troops >= 3 and len(attack_from_adjuscent_enemies) > 0:
+            print("[handle_attack_new_new] --> Attack from territory has {} troops, and is surrounded by {} enemies".format(game.state.territories[attack_from].troops,len(attack_from_adjuscent_enemies)))
+
+            #Get most surrounded enemy territory
+            def territory_most_surrounded(territory):
+                adjuscent = game.state.map.get_adjacent_to(territory)
+                adjuscent_friendly = list(set(game.state.map.get_adjacent_to(territory)) & set(game.state.get_territories_owned_by(game.state.me.player_id)))
+                return len(adjuscent) / len(adjuscent_friendly)
+                
+
+            candidate_attack = sorted(attack_from_adjuscent_enemies,key=territory_most_surrounded)
+
+            #Get territories where the attack probability is greater than probability threshold 
+            attack_from_troops = game.state.territories[attack_from].troops - 1
+
+            #battleprob,risk_probability
+            p_obj = risk_probability()
+
+            candidate_attack_probability_all = [ (x,p_obj.battleprob(attack_from_troops,game.state.territories[x].troops)) for x in candidate_attack if p_obj.battleprob(attack_from_troops,game.state.territories[x].troops)]
+            candidate_attack_probability = [ (x,p_obj.battleprob(attack_from_troops,game.state.territories[x].troops)) for x in candidate_attack if p_obj.battleprob(attack_from_troops,game.state.territories[x].troops) >= attack_probability_threshold]
+
+            print(f"[handle_attack_probability] --> Attack from {attack_from} with {attack_from_troops} troops all probability: {candidate_attack_probability_all}. Filtered probability {candidate_attack_probability}")
+
+            if len(candidate_attack_probability) == 0:
+                print(f"[handle_attack_probability] --> There is no adjuscent territory available for attack from {attack_from} moving to next")
+                pass
+            else:
+                print(f"[handle_attack_probability] --> Attacking from {attack_from} to {candidate_attack_probability[0][0]} probability of success {candidate_attack_probability[0][1]}")
+                move = game.move_attack(query,attack_from, candidate_attack_probability[0][0], min(3, game.state.territories[attack_from].troops - 1))
+                return move
+
+
+            return game.move_attack_pass(query)
+            move = game.move_attack(query,attack_from, candidate_attack, min(3, game.state.territories[attack_from].troops - 1))
+        else:
+            pass
+            
+            
+    print(f"[handle_attack_probability] --> There is no adjuscent territory available for attack al all. Proceeding without attack")
+    return game.move_attack_pass(query)
+
 def handle_attack_new_new(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
     # We will attack someone.
     my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
@@ -442,6 +503,12 @@ def handle_attack_new_new(game: Game, bot_state: BotState, query: QueryAttack) -
     #print("My territories: ",my_territories,flush=True)
     #print("Attack home: {}. Has {} troops".format(attack_from,game.state.territories[attack_from].troops),flush=True)
 
+    print("[handle_attack_new_new] --> Hand attack new new")
+
+    object_t = risk_probability()
+    print("[TEST] --> ",object_t.battleprob(3,3,2))
+
+    #battleprob
 
 
     for attack_from in my_territory_sorted:
@@ -917,168 +984,171 @@ def shortest_connected_path(game:Game, source:int, destination:int):
         #print("[Inside] Shortest path between {} and {} = {} and first path {}".format(source,destination,final_value,value))
         return final_value
     
-class risk_game_probability:
 
-    twodice = [[0]*6 for i in range(6)]
-    threedice = [[0]*6 for i in range(6)]
+    
+class risk_probability:
 
-    # get number of ways to have two dice with particular values,
-    # as well as three dice where the highest 2 have particular values
-    for i in range(6):
-        for j in range(6):
-            twodice[min(i,j)][max(i,j)] += 1
-            for k in range(6):
-                ordered = sorted([i,j,k])
-                threedice[ordered[1]][ordered[2]] += 1
+    def __init__(self):
+        twodice = [[0]*6 for i in range(6)]
+        threedice = [[0]*6 for i in range(6)]
 
-    total2dice = sum(sum(arr) for arr in twodice)
-    total3dice = sum(sum(arr) for arr in threedice)
+        # get number of ways to have two dice with particular values,
+        # as well as three dice where the highest 2 have particular values
+        for i in range(6):
+            for j in range(6):
+                twodice[min(i,j)][max(i,j)] += 1
+                for k in range(6):
+                    ordered = sorted([i,j,k])
+                    threedice[ordered[1]][ordered[2]] += 1
 
-    flawless3v2 = 0 # probability of attacker rolling 3 dice against 2 and losing no pieces
-    flawless2v2 = 0 # probability of attacker rolling 2 dice against 2 and losing no pieces
-    for h in range(5):
-        for i in range(h,5):
-            # prob of defender rolling rolling h and i
-            # we divide by attacker sample space now to avoid doing it repeatedly later
-            temp3v2 = float(twodice[h][i])/(total2dice*total3dice)
-            temp2v2 = float(twodice[h][i])/(total2dice*total2dice)
-            for j in range(h+1,6):
-                for k in range(i+1,6):
-                    # going through all ways attacker can defeat two armies
-                    # without losing anybody in the process.
-                    flawless3v2 += temp3v2*threedice[j][k]
-                    flawless2v2 += temp2v2*twodice[j][k]
+        total2dice = sum(sum(arr) for arr in twodice)
+        total3dice = sum(sum(arr) for arr in threedice)
 
-    flawed3v2 = 0 # probability of attacker rolling 3v2 and each losing 1 piece
-    flawed2v2 = 0 # probability of attacker rolling 2v2 and each losing 1 piece
-    for h in range(5):
-        for i in range(h,6):
-            # prob of defender rolling h and i
-            # once again we factor out division of attacker sample space
-            temp3v2 = float(twodice[h][i])/(total2dice*total3dice)
-            temp2v2 = float(twodice[h][i])/(total2dice*total2dice)
-            for j in range(h+1,6):
-                for k in range(j,i+1):
-                    # attacker defeats low die but loses to high die
-                    flawed3v2 += temp3v2*threedice[j][k]
-                    flawed2v2 += temp2v2*twodice[j][k]
-            if i==5: continue # attacker cannot beat high die
-            for j in range(h+1):
-                for k in range(i+1,6):
-                    # attacker defeats high die but loses to low die
-                    flawed3v2 += temp3v2*threedice[j][k]
-                    flawed2v2 += temp2v2*twodice[j][k]
+        flawless3v2 = 0 # probability of attacker rolling 3 dice against 2 and losing no pieces
+        flawless2v2 = 0 # probability of attacker rolling 2 dice against 2 and losing no pieces
+        for h in range(5):
+            for i in range(h,5):
+                # prob of defender rolling rolling h and i
+                # we divide by attacker sample space now to avoid doing it repeatedly later
+                temp3v2 = float(twodice[h][i])/(total2dice*total3dice)
+                temp2v2 = float(twodice[h][i])/(total2dice*total2dice)
+                for j in range(h+1,6):
+                    for k in range(i+1,6):
+                        # going through all ways attacker can defeat two armies
+                        # without losing anybody in the process.
+                        flawless3v2 += temp3v2*threedice[j][k]
+                        flawless2v2 += temp2v2*twodice[j][k]
 
-    fatal3v2 = 1-flawless3v2-flawed3v2 # attacker loses two when rolling 3
-    fatal2v2 = 1-flawless2v2-flawed2v2 # attacker loses two when rolling 2
+        flawed3v2 = 0 # probability of attacker rolling 3v2 and each losing 1 piece
+        flawed2v2 = 0 # probability of attacker rolling 2v2 and each losing 1 piece
+        for h in range(5):
+            for i in range(h,6):
+                # prob of defender rolling h and i
+                # once again we factor out division of attacker sample space
+                temp3v2 = float(twodice[h][i])/(total2dice*total3dice)
+                temp2v2 = float(twodice[h][i])/(total2dice*total2dice)
+                for j in range(h+1,6):
+                    for k in range(j,i+1):
+                        # attacker defeats low die but loses to high die
+                        flawed3v2 += temp3v2*threedice[j][k]
+                        flawed2v2 += temp2v2*twodice[j][k]
+                if i==5: continue # attacker cannot beat high die
+                for j in range(h+1):
+                    for k in range(i+1,6):
+                        # attacker defeats high die but loses to low die
+                        flawed3v2 += temp3v2*threedice[j][k]
+                        flawed2v2 += temp2v2*twodice[j][k]
 
-    flawless1v2 = 0 # probability of attacker rolling 1 die and winning against 2 dice
-    for i in range(5):
-        for j in range(i,5):
-            # prob of defender rolling i and j
-            # factor out division by six (attacker sample space)
-            temp1v2 = float(twodice[i][j])/(total2dice*6)
-            for k in range(j+1,6):
-                flawless1v2 += temp1v2
+        fatal3v2 = 1-flawless3v2-flawed3v2 # attacker loses two when rolling 3
+        fatal2v2 = 1-flawless2v2-flawed2v2 # attacker loses two when rolling 2
 
-    fatal1v2 = 1-flawless1v2 # probability of attacker rolling 1v2 and losing
+        flawless1v2 = 0 # probability of attacker rolling 1 die and winning against 2 dice
+        for i in range(5):
+            for j in range(i,5):
+                # prob of defender rolling i and j
+                # factor out division by six (attacker sample space)
+                temp1v2 = float(twodice[i][j])/(total2dice*6)
+                for k in range(j+1,6):
+                    flawless1v2 += temp1v2
 
-    flawless3v1 = 0 # probability of attacker rolling 3v1 and winning
-    flawless2v1 = 0 # probability of attacker rolling 2v1 and winning
-    for i in range(5):
-        temp3v1 = 1.0/(6*total3dice)
-        temp2v1 = 1.0/(6*total2dice)
-        for j in range(6):
-            for k in range(max(j,i+1),6):
-                flawless3v1 += temp3v1*threedice[j][k]
-                flawless2v1 += temp2v1*twodice[j][k]
+        fatal1v2 = 1-flawless1v2 # probability of attacker rolling 1v2 and losing
 
-    fatal3v1 = 1-flawless3v1 # probability of attacker rolling 3v1 and losing
-    fatal2v1 = 1-flawless2v1 # probabiliyy of attacker rolling 2v1 and losing
+        flawless3v1 = 0 # probability of attacker rolling 3v1 and winning
+        flawless2v1 = 0 # probability of attacker rolling 2v1 and winning
+        for i in range(5):
+            temp3v1 = 1.0/(6*total3dice)
+            temp2v1 = 1.0/(6*total2dice)
+            for j in range(6):
+                for k in range(max(j,i+1),6):
+                    flawless3v1 += temp3v1*threedice[j][k]
+                    flawless2v1 += temp2v1*twodice[j][k]
+
+        fatal3v1 = 1-flawless3v1 # probability of attacker rolling 3v1 and losing
+        fatal2v1 = 1-flawless2v1 # probabiliyy of attacker rolling 2v1 and losing
 
 
-    flawless1v1 = 0 # prob of attacker rolling 1v1 and winning
-    for i in range(5):
-        for j in range(i+1,6):
-            flawless1v1 += 1.0/36
+        flawless1v1 = 0 # prob of attacker rolling 1v1 and winning
+        for i in range(5):
+            for j in range(i+1,6):
+                flawless1v1 += 1.0/36
 
-    fatal1v1 = 1-flawless1v1
+        fatal1v1 = 1-flawless1v1
 
-    # probs[x][y][z] means probability of attacker using x dice vs y dice with outcome z
-    # (z=0 is a win, z=1 is a tie, z=2 is a loss)
-    probs = [0, [0, [flawless1v1,0.0,fatal1v1], [flawless1v2,0.0,fatal1v2]],
-                [0, [flawless2v1,0.0,fatal2v1], [flawless2v2,flawed2v2,fatal2v2]],
-                [0, [flawless3v1,0.0,fatal3v1], [flawless3v2,flawed3v2,fatal3v2]]]
-    bmem = {}
-    omem = {}
-    tmem = {}
+        # self.probs[x][y][z] means probability of attacker using x dice vs y dice with outcome z
+        # (z=0 is a win, z=1 is a tie, z=2 is a loss)
+        self.probs = [0, [0, [flawless1v1,0.0,fatal1v1], [flawless1v2,0.0,fatal1v2]],
+                    [0, [flawless2v1,0.0,fatal2v1], [flawless2v2,flawed2v2,fatal2v2]],
+                    [0, [flawless3v1,0.0,fatal3v1], [flawless3v2,flawed3v2,fatal3v2]]]
+        self.bmem = {}
+        self.omem = {}
+        self.tmem = {}
 
     # Finds probability that army of size attackers will
     # defeat army of size defenders with at least minleft troops left.
     # Less general than outcomeprob.
-    def battleprob(attackers, defenders, minleft=1):
+    def battleprob(self,attackers, defenders, minleft=1):
         if attackers < minleft: return 0.0
         if defenders == 0: return 1.0
 
         h = (attackers, defenders, minleft)
-        if h in bmem: return bmem[h]
+        if h in self.bmem: return self.bmem[h]
 
         val = 0.0
         if attackers >= 3 and defenders >= 2:
-            val = probs[3][2][0]*battleprob(attackers, defenders-2, minleft) + \
-                probs[3][2][1]*battleprob(attackers-1, defenders-1, minleft) + \
-                probs[3][2][2]*battleprob(attackers-2, defenders, minleft)
+            val = self.probs[3][2][0]*self.battleprob(attackers, defenders-2, minleft) + \
+                self.probs[3][2][1]*self.battleprob(attackers-1, defenders-1, minleft) + \
+                self.probs[3][2][2]*self.battleprob(attackers-2, defenders, minleft)
         elif attackers >= 3 and defenders == 1:
-            val = probs[3][1][0] + \
-                probs[3][1][2]*battleprob(attackers-1, defenders, minleft)
+            val = self.probs[3][1][0] + \
+                self.probs[3][1][2]*self.battleprob(attackers-1, defenders, minleft)
         elif attackers == 2 and defenders >= 2:
-            val = probs[2][2][0]*battleprob(attackers, defenders-2, minleft) + \
-                probs[2][2][1]*battleprob(attackers-1, defenders-1, minleft) + \
-                probs[2][2][2]*battleprob(attackers-2, defenders, minleft)
+            val = self.probs[2][2][0]*self.battleprob(attackers, defenders-2, minleft) + \
+                self.probs[2][2][1]*self.battleprob(attackers-1, defenders-1, minleft) + \
+                self.probs[2][2][2]*self.battleprob(attackers-2, defenders, minleft)
         elif attackers == 2 and defenders == 1:
-            val = probs[2][1][0] + \
-                probs[2][1][2]*battleprob(attackers-1, defenders, minleft)
+            val = self.probs[2][1][0] + \
+                self.probs[2][1][2]*self.battleprob(attackers-1, defenders, minleft)
         elif attackers == 1 and defenders >= 2:
-            val = probs[1][2][0]*battleprob(attackers, defenders-1, minleft)
+            val = self.probs[1][2][0]*self.battleprob(attackers, defenders-1, minleft)
         elif attackers == 1 and defenders == 1:
-            val = probs[1][1][0]
+            val = self.probs[1][1][0]
 
-        bmem[h] = val
+        self.bmem[h] = val
         return val
 
     # Finds probability that an army of size attackers
     # battling an army of size defenders will result in
     # arem attackers and drem attackers remaining on either side.
-    def outcomeprob(attackers, defenders, arem=1, drem=0):
+    def outcomeprob(self,attackers, defenders, arem=1, drem=0):
         if attackers < arem or defenders < drem: return 0.0
         if defenders == drem:
             if drem == 0 and attackers != arem: return 0.0
             if attackers == arem: return 1.0
 
         h = (attackers, defenders, arem, drem)
-        if h in omem: return omem[h]
+        if h in self.omem: return self.omem[h]
 
         val = 0.0
         if attackers >= 3 and defenders >= 2:
-            val = probs[3][2][0]*outcomeprob(attackers, defenders-2, arem, drem) + \
-                probs[3][2][1]*outcomeprob(attackers-1, defenders-1, arem, drem) + \
-                probs[3][2][2]*outcomeprob(attackers-2, defenders, arem, drem)
+            val = self.probs[3][2][0]*self.outcomeprob(attackers, defenders-2, arem, drem) + \
+                self.probs[3][2][1]*self.outcomeprob(attackers-1, defenders-1, arem, drem) + \
+                self.probs[3][2][2]*self.outcomeprob(attackers-2, defenders, arem, drem)
         elif attackers >= 3 and defenders == 1:
-            val = probs[3][1][0]*outcomeprob(attackers, defenders-1, arem, drem) + \
-                probs[3][1][2]*outcomeprob(attackers-1, defenders, arem, drem)
+            val = self.probs[3][1][0]*self.outcomeprob(attackers, defenders-1, arem, drem) + \
+                self.probs[3][1][2]*self.outcomeprob(attackers-1, defenders, arem, drem)
         elif attackers == 2 and defenders >= 2:
-            val = probs[2][2][0]*outcomeprob(attackers, defenders-2, arem, drem) + \
-                probs[2][2][1]*outcomeprob(attackers-1, defenders-1, arem, drem) + \
-                probs[2][2][2]*outcomeprob(attackers-2, defenders, arem, drem)
+            val = self.probs[2][2][0]*self.outcomeprob(attackers, defenders-2, arem, drem) + \
+                self.probs[2][2][1]*self.outcomeprob(attackers-1, defenders-1, arem, drem) + \
+                self.probs[2][2][2]*self.outcomeprob(attackers-2, defenders, arem, drem)
         elif attackers == 2 and defenders == 1:
-            val = probs[2][1][0]*outcomeprob(attackers, defenders-1, arem, drem) + \
-                probs[2][1][2]*outcomeprob(attackers-1, defenders, arem, drem)
+            val = self.probs[2][1][0]*self.outcomeprob(attackers, defenders-1, arem, drem) + \
+                self.probs[2][1][2]*self.outcomeprob(attackers-1, defenders, arem, drem)
         elif attackers == 1 and defenders >= 2:
-            val = probs[1][2][0]*outcomeprob(attackers, defenders-1, arem, drem)
+            val = self.probs[1][2][0]*self.outcomeprob(attackers, defenders-1, arem, drem)
         elif attackers == 1 and defenders == 1:
-            val = probs[1][1][0]*outcomeprob(attackers, defenders-1, arem, drem)
+            val = self.probs[1][1][0]*self.outcomeprob(attackers, defenders-1, arem, drem)
 
-        omem[h] = val
+        self.omem[h] = val
         return val
 
     # Finds probability of successful tour given:
@@ -1087,7 +1157,7 @@ class risk_game_probability:
     # which defending army is being attacked (default 0 for the start),
     # the number of troops we want to leave behind at each country (default 1 for each country),
     # number of guys we want to leave behind in each country
-    def tourprob(attackers, darmies, tindex=0, fortify=([1]*100)):
+    def tourprob(self,attackers, darmies, tindex=0, fortify=([1]*100)):
         if tindex == len(darmies): return 1.0
         if tindex == 0: # reset memoize table
             global tmem
@@ -1101,12 +1171,10 @@ class risk_game_probability:
 
         val = 0.0
         for i in range(minremaining, army+1):
-            val += outcomeprob(army, darmies[tindex], i)*tourprob(i, darmies, tindex+1, fortify)
+            val += self.outcomeprob(army, darmies[tindex], i)*self.tourprob(i, darmies, tindex+1, fortify)
 
         tmem[h] = val
-        return val
-    
-    
+        return val   
 
 
 if __name__ == "__main__":
