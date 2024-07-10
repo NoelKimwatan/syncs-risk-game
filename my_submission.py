@@ -72,7 +72,8 @@ def main():
                     return handle_distribute_troops(game, bot_state, q)
 
                 case QueryAttack() as q:
-                    return handle_attack(game, bot_state, q)
+                    #return handle_attack(game, bot_state, q)
+                    return handle_attack_new(game, bot_state, q)
 
                 case QueryTroopsAfterAttack() as q:
                     return handle_troops_after_attack(game, bot_state, q)
@@ -81,7 +82,9 @@ def main():
                     return handle_defend(game, bot_state, q)
 
                 case QueryFortify() as q:
-                    return handle_fortify(game, bot_state, q)
+                    #return handle_fortify(game, bot_state, q)
+                    return handle_fortify_new(game, bot_state, q)
+                    
         
         # Send the move to the engine.
         game.send_move(choose_move(query))
@@ -198,11 +201,11 @@ def get_home_base_territories(game:Game, home_base:int):
         adjuscent = game.state.map.get_adjacent_to(territory)
         adjuscent.append(territory)
         adjuscent_owned_territories = list(set(my_territories) & set(adjuscent))
-        print("Adjuscent owned territories: ",adjuscent_owned_territories,flush=True)
+        #print("Adjuscent owned territories: ",adjuscent_owned_territories,flush=True)
 
         for territory in adjuscent_owned_territories:
             if territory not in home_base_territories and territory not in checked:
-                print("Territory: {} Not in adjuscent or checked".format(territory))
+                #print("Territory: {} Not in adjuscent or checked".format(territory))
                 home_base_territories.add(territory)
                 checked.append(territory)
                 get_adjuscent_owned_territories(territory)
@@ -222,11 +225,11 @@ def handle_place_initial_troop(game: Game, bot_state: BotState, query: QueryPlac
 
     my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
 
-    print("-------------------------------------------------------------------------------------------------",flush=True)
-    print("Mt territories: ",my_territories)
+    # print("-------------------------------------------------------------------------------------------------",flush=True)
+    # print("Mt territories: ",my_territories)
     home_base_territories = get_home_base_territories(game,home_base)
-    print("Home base territories: ",home_base_territories,flush=True)
-    print("-------------------------------------------------------------------------------------------------",flush=True)
+    # print("Home base territories: ",home_base_territories,flush=True)
+    # print("-------------------------------------------------------------------------------------------------",flush=True)
     
     # We will place troops along the territories on our border.
     all_border_territories = game.state.get_all_border_territories(
@@ -238,21 +241,10 @@ def handle_place_initial_troop(game: Game, bot_state: BotState, query: QueryPlac
     
     # # We will place a troop in the border territory with the least troops currently
     # # on it. This should give us close to an equal distribution.
-    # border_territory_models = [game.state.territories[x] for x in border_territories_home_base]
+    border_territory_models = [game.state.territories[x] for x in border_territories_home_base]
     # #min_troops_territory = min(border_territory_models, key=lambda x: x.troops)
-    # max_troops_territory = max(border_territory_models, key=lambda x: x.troops)
+    max_troops_territory = max(border_territory_models, key=lambda x: x.troops)
 
-    def max_adjuscent_troops(territory):
-        adjuscent_territories = game.state.map.get_adjacent_to(territory)
-        my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
-
-        adjuscent_territories_non_friendly = list(set(adjuscent_territories) - set(my_territories))
-        adjuscent_troops = [game.state.territories[x].troops  for x in adjuscent_territories_non_friendly ]
-
-        print("Adjuscent troops: ",adjuscent_troops)
-        return  max(adjuscent_troops)
-
-    border_territories_home_base = sorted(border_territories_home_base,key=max_adjuscent_troops,reverse=True)
 
     
 
@@ -292,7 +284,7 @@ def handle_redeem_cards(game: Game, bot_state: BotState, query: QueryRedeemCards
     #         card_set = game.state.get_card_set(cards_remaining)
 
     ## Change and start redeeming cards whenever we have more than 3 cards
-    if query.cause == "turn_started":
+    if game.state.card_sets_redeemed > 6 and query.cause == "turn_started":
         card_set = game.state.get_card_set(cards_remaining)
         while card_set != None:
             card_sets.append(card_set)
@@ -352,6 +344,41 @@ def handle_distribute_troops(game: Game, bot_state: BotState, query: QueryDistri
 
 
     return game.move_distribute_troops(query, distributions)
+
+def handle_attack_new(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
+    # We will attack someone.
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    bordering_territories = game.state.get_all_adjacent_territories(my_territories)
+    
+    #Attack from territory with the most troops
+    attack_from = sorted(my_territories, key= lambda x: game.state.territories[x].troops,reverse=True )[0]
+
+    #print("My territories: ",my_territories,flush=True)
+    #print("Attack home: {}. Has {} troops".format(attack_from,game.state.territories[attack_from].troops),flush=True)
+
+    #Attack territory with mostly surrounded by my territories
+    attack_from_adjuscent = game.state.map.get_adjacent_to(attack_from)
+    attack_from_adjuscent_enemies = list(set(attack_from_adjuscent) - set(my_territories))
+
+    if game.state.territories[attack_from].troops > 3:
+        if len(attack_from_adjuscent_enemies) != 0:
+            #print("We have an enemy adjuscent to our stronghold")
+            def territory_most_surrounded(territory):
+                adjuscent = game.state.map.get_adjacent_to(territory)
+                adjuscent_friendly = list(set(game.state.map.get_adjacent_to(territory)) & set(game.state.get_territories_owned_by(game.state.me.player_id)))
+                return len(adjuscent) / len(adjuscent_friendly)
+            candidate_attack = sorted(attack_from_adjuscent_enemies,key=territory_most_surrounded)[0]
+            #print("Attacking {} from {} ".format(candidate_attack,attack_from),flush=True)
+
+            move = game.move_attack(query,attack_from, candidate_attack, min(3, game.state.territories[attack_from].troops - 1))
+            return move
+        else:
+            #print("We do NOT have an enemy adjuscent to our stronghold",flush=True)
+            return game.move_attack_pass(query)
+    else:
+        #print("No territory has more than 3 troops",flush=True)
+        return game.move_attack_pass(query)
+
 
 
 def handle_attack(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
@@ -442,6 +469,84 @@ def handle_defend(game: Game, bot_state: BotState, query: QueryDefend) -> MoveDe
     defending_troops = min(game.state.territories[defending_territory].troops, 2)
     return game.move_defend(query, defending_troops)
 
+def handle_fortify_new(game: Game, bot_state: BotState, query: QueryFortify) -> Union[MoveFortify, MoveFortifyPass]:
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    inland_territories = []
+
+
+    for territory in my_territories:
+        adjuscent = game.state.map.get_adjacent_to(territory)
+        adjuscent_enemy = list(set(adjuscent) - set(my_territories))
+
+        #Find an inland territory with more than 2 troop
+        if len(adjuscent_enemy) == 0 and game.state.territories[territory].troops >= 2:
+            #print("Territory {} has no adjuscent enemy and has {} troops ".format(territory,game.state.territories[territory].troops),flush=True)
+            inland_territories.append(territory)
+
+    #Sort acccording to number of troops
+    inland_territories = sorted(inland_territories,key=lambda x: game.state.territories[x].troops,reverse=True)
+    inland_territories_troops = [(x,game.state.territories[x].troops) for x in inland_territories]
+
+    print(flush=True)
+    print(flush=True)
+    print("My territories: ",my_territories,flush=True)
+    print("Inland territory(no,troops): ",inland_territories_troops,flush=True)
+
+    #If we have inland territories we move them towards the strongest enemy. 
+    if len(inland_territories) > 0:
+        # We will always fortify towards the most powerful player (player with most troops on the map) to defend against them.
+        total_troops_per_player = {}
+        for player in game.state.players.values():
+            total_troops_per_player[player.player_id] = sum([game.state.territories[x].troops for x in game.state.get_territories_owned_by(player.player_id)])
+
+        most_powerful_players = sorted(total_troops_per_player.items(), key=lambda x: x[1],reverse=True)
+
+        # If we are the most powerful, we move inland troops to the location with most troops, if we are not the most powerful player we move towards the most powerful player
+        if most_powerful_players[0][0] == game.state.me.player_id:
+            print("We are the strongest player",flush=True)
+
+
+            border_territories = game.state.get_all_border_territories(my_territories)
+            border_territories_ordered = sorted(border_territories,key=lambda x: game.state.territories[x].troops,reverse=True)
+            border_territories_ordered_troops = [(x,game.state.territories[x].troops) for x in border_territories_ordered]
+
+
+            print("Border territory troops: ",border_territories_ordered_troops,flush=True)
+
+            for border_territory in border_territories_ordered:
+                shortest_path = shortest_connected_path(game,inland_territories[0],border_territory)
+                print("Shortest path between {} and {} is {}".format(inland_territories[0],border_territory,shortest_path))
+
+                if len(shortest_path) >= 2:
+                    print("----> Moving {} troops from {} to {} towards {}".format(game.state.territories[inland_territories[0]].troops - 1,shortest_path[0],shortest_path[1],border_territory))
+                    return game.move_fortify(query, shortest_path[0], shortest_path[1], game.state.territories[inland_territories[0]].troops - 1)
+
+
+            #Uf there is no nearby territory, will probably never reach
+            return game.move_fortify_pass(query)
+        else:
+            # Otherwise we will find the shortest path between our territory with the most troops
+            # and any of the most powerful player's territories and fortify along that path.
+            candidate_territories = game.state.get_all_border_territories(my_territories)
+            most_troops_territory = max(candidate_territories, key=lambda x: game.state.territories[x].troops)
+
+            # To find the shortest path, we will use a custom function.
+            shortest_path = find_shortest_path_from_vertex_to_set(game, most_troops_territory, set(game.state.get_territories_owned_by(most_powerful_players[0][0])))
+            # We will move our troops along this path (we can only move one step, and we have to leave one troop behind).
+            # We have to check that we can move any troops though, if we can't then we will pass our turn.
+            if len(shortest_path) > 0 and game.state.territories[most_troops_territory].troops > 1:
+                return game.move_fortify(query, shortest_path[0], shortest_path[1], game.state.territories[most_troops_territory].troops - 1)
+            else:
+                return game.move_fortify_pass(query)
+    else:
+        return game.move_fortify_pass(query)
+    
+
+    
+
+
+
+
 
 def handle_fortify(game: Game, bot_state: BotState, query: QueryFortify) -> Union[MoveFortify, MoveFortifyPass]:
     """At the end of your turn, after you have finished attacking, you may move a number of troops between
@@ -504,6 +609,124 @@ def find_shortest_path_from_vertex_to_set(game: Game, source: int, target_set: s
         current = parent[current]
 
     return path[::-1]
+
+def are_connected(game:Game, source:int, destination:int) -> bool:
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    checked = set()
+
+    def connected_recersion(sorce_des):
+        adjuscent = game.state.map.get_adjacent_to(sorce_des)
+        adjuscent_owned = list(set(adjuscent) & set(my_territories))
+        checked.add(sorce_des)
+
+        # print("Source: {} Destination: {}".format(sorce_des,destination),flush=True)
+        # print("Adjuscent territories: ",adjuscent)
+        # print("Adjuscent owned territories: ",adjuscent_owned)
+
+        if destination == sorce_des:
+            #print("The are connected")
+            return True
+        else:
+            for t in adjuscent_owned:
+                if t not in checked:
+                    return connected_recersion(t)
+                
+        # print("They are not connected",flush=True)
+        # return False
+
+    value = connected_recersion(source)
+
+        
+    return value if value is not None else False
+
+def connection_path(game:Game, source:int, destination:int):
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    checked = set()
+    path = []
+
+    def connected_recersion(sorce_des):
+        adjuscent = game.state.map.get_adjacent_to(sorce_des)
+        adjuscent_owned = list(set(adjuscent) & set(my_territories))
+        checked.add(sorce_des)
+
+        
+        
+        path.append(sorce_des)
+
+        # print("Source: {} Destination: {}".format(sorce_des,destination),flush=True)
+        # print("Adjuscent territories: ",adjuscent,flush=True)
+        # print("Adjuscent owned territories: ",adjuscent_owned,flush=True)
+
+        if destination == sorce_des:
+            print("----------------The are connected",flush=True)
+            return path
+        else:
+            for t in adjuscent_owned:
+                if t not in checked:
+                    return connected_recersion(t)
+        path.pop()
+                
+        # print("They are not connected",flush=True)
+        # return False
+
+    path = connected_recersion(source)
+
+    if path == None:
+        print("The are not connected")
+        return []
+    else:
+        return path
+
+def shortest_connected_path(game:Game, source:int, destination:int):
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    checked = set()
+    path = []
+
+    def connected_recersion(sorce_des):
+        adjuscent = game.state.map.get_adjacent_to(sorce_des)
+        adjuscent_owned = list(set(adjuscent) & set(my_territories))
+        checked.add(sorce_des)
+
+        path.append(sorce_des)
+
+        if destination in adjuscent_owned:
+            path.append(destination)
+            return path
+        else:
+            for t in adjuscent_owned:
+                if t not in checked:
+                    return connected_recersion(t)
+        path.pop()
+
+                
+
+    value = connected_recersion(source)
+    final_value = []
+
+    # print("[Inside]Value of path: ",path)
+    # print("[Inside]Value of value: ",value)
+
+
+    if value == None:
+        #print("[Inside] Shortest path between {} and {} = {}".format(source,destination,None))
+        return []
+    else:
+        next_value = 0
+        while True:
+            final_value.append(value[next_value])
+
+            if next_value == len(value) - 1:
+                break
+
+            adjuscent = game.state.map.get_adjacent_to(value[next_value])
+            adjuscent_list = list(set(value) & set(adjuscent))
+
+            next_value = max([ value.index(x) for x in adjuscent_list])
+            
+
+        #print("[Inside] Shortest path between {} and {} = {} and first path {}".format(source,destination,final_value,value))
+        return final_value
+
 
 if __name__ == "__main__":
     main()
