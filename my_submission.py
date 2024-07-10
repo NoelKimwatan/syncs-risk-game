@@ -237,25 +237,54 @@ def handle_place_initial_troop_new(game: Game, bot_state: BotState, query: Query
     print("[handle_place_initial_troop_new] - Border territories: ",all_border_territories,flush=True)
     print("[handle_place_initial_troop_new] - Non abandoned Border territories: ",non_abandoned_border,flush=True)
 
-    border_territory_placement = []
 
-    for border_t in non_abandoned_border:
-        adjuscent = game.state.map.get_adjacent_to(border_t)
-        adjuscent_enemy = list(set(adjuscent) - set(my_territories))
-        enemy_troops = sum([ game.state.territories[x].troops for x in adjuscent_enemy])
-        difference = enemy_troops - game.state.territories[border_t].troops
+    #Get friendly territory difference
+    def get_enemy_terriroty_troops_difference(friendly_territories):
+        border_territory_placement = []
+        for friendly in friendly_territories:
+            adjuscent = game.state.map.get_adjacent_to(friendly)
+            adjuscent_enemy = list(set(adjuscent) - set(my_territories))
+            enemy_troops = sum([ game.state.territories[x].troops for x in adjuscent_enemy])
+            difference = enemy_troops - game.state.territories[friendly].troops
+
+            if difference > 1:
+                border_territory_placement.append((friendly,difference))
+
+        border_territory_placement = sorted(border_territory_placement, key=lambda x: x[1],reverse=True)
+
+    #If there are non abandoned territories
+
+    if len(non_abandoned_border) > 0:
+
+
+        # for border_t in non_abandoned_border:
+        #     adjuscent = game.state.map.get_adjacent_to(border_t)
+        #     adjuscent_enemy = list(set(adjuscent) - set(my_territories))
+        #     enemy_troops = sum([ game.state.territories[x].troops for x in adjuscent_enemy])
+        #     difference = enemy_troops - game.state.territories[border_t].troops
+
+        #     if difference > 1:
+        #         border_territory_placement.append((border_t,difference))
+
+        border_territory_placement = get_enemy_terriroty_troops_difference(non_abandoned_border)
+        print("[handle_place_initial_troop_new] - Border territory placement: ",border_territory_placement,flush=True)
+
+        if len(border_territory_placement) >=1:
+            return game.move_place_initial_troop(query, border_territory_placement[0][0])
+        else:
+            max_troops = max(non_abandoned_border,key=lambda x: game.state.territories[x].troops)
+            return game.move_place_initial_troop(query, max_troops)
         
-        if difference > 1:
-            border_territory_placement.append((border_t,difference))
-
-    border_territory_placement = sorted(border_territory_placement, key=lambda x: x[1],reverse=True)
-    print("[handle_place_initial_troop_new] - Border territory placement: ",border_territory_placement,flush=True)
-
-    if len(border_territory_placement) >=1:
-        return game.move_place_initial_troop(query, border_territory_placement[0][0])
+    #If there are no non abandoned territories 
     else:
-        max_troops = max(non_abandoned_border,key=lambda x: game.state.territories[x].troops)
-        return game.move_place_initial_troop(query, max_troops)
+        home_base_territories = get_home_base_territories(game,home_base)
+        home_base_border_territories = list(set(home_base_territories) & set(all_border_territories))
+
+
+
+
+
+
 
 
     #For territories bordered by just 1 player just place enoung troops to defend
