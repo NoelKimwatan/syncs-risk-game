@@ -1,3 +1,4 @@
+import time
 class risk_probability:
 
     def __init__(self):
@@ -190,5 +191,14 @@ class risk_probability:
     
 test = risk_probability()
 #attacker,defender
-print(test.battleprob(5,6))
+start = time.perf_counter()
+
+# print(f"Before: {(time.perf_counter() - start)*1000}")
+# print(test.battleprob(669,1609))
+# print(f"Before: {(time.perf_counter() - start)*1000}")
+
+
+print(f"Before: {(time.perf_counter() - start)*1000}")
+print(test.battleprob(6,6))
+print(f"Before: {(time.perf_counter() - start)*1000}")
 
