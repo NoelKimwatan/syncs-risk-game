@@ -151,7 +151,7 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
             }
             return territoryWeight[territory]
         
-        preferredStartingPoint = [28,37,38,41]
+        preferredStartingPoint = [8,28,37,38,41]
         prefferedAvailable = list(set(preferredStartingPoint) & set(unclaimed_territories))
         
         if len(prefferedAvailable) != 0:
