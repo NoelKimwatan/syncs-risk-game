@@ -39,3 +39,7 @@ move_attack: record_type='move_attack' move_by_player=4 attacking_territory=29 d
 
 Improvements
 You can dynamically change how many troops you attack a territory with from 3 to less
+
+
+
+1. Do not attack if an adjuscent territoy has more troops than you can defend against

@@ -189,4 +189,6 @@ class risk_probability:
         return val
     
 test = risk_probability()
-print(test.battleprob(2,1))
+#attacker,defender
+print(test.battleprob(5,6))
+

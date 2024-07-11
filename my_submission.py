@@ -25,6 +25,8 @@ from risk_shared.records.moves.move_troops_after_attack import MoveTroopsAfterAt
 from risk_shared.records.record_attack import RecordAttack
 from risk_shared.records.types.move_type import MoveType
 
+import time
+
 #Homabase
 home_base = -1
 
@@ -45,6 +47,10 @@ def main():
 
     global attack_probability_threshold 
     attack_probability_threshold = 0.75
+
+    #battleprob,risk_probability
+    global p_obj
+    p_obj = risk_probability()
 
 
 
@@ -436,6 +442,7 @@ def handle_distribute_troops(game: Game, bot_state: BotState, query: QueryDistri
     return game.move_distribute_troops(query, distributions)
 
 def handle_attack_probability(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
+    start = time.perf_counter()
      # We will attack someone.
     my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
     bordering_territories = game.state.get_all_adjacent_territories(my_territories)
@@ -444,8 +451,8 @@ def handle_attack_probability(game: Game, bot_state: BotState, query: QueryAttac
     my_territory_sorted = sorted(my_territories, key= lambda x: game.state.territories[x].troops,reverse=True )
 
     #We will decide on the territory to attack using the probability equation
-
     for attack_from in my_territory_sorted:
+        print(f"[handle_attack_probability] Attack from for loop {(time.perf_counter() - start)*1000} milli seconds")
         #Attack territory with mostly surrounded by my territories
         attack_from_adjuscent = game.state.map.get_adjacent_to(attack_from)
         attack_from_adjuscent_enemies = list(set(attack_from_adjuscent) - set(my_territories))
@@ -454,6 +461,9 @@ def handle_attack_probability(game: Game, bot_state: BotState, query: QueryAttac
         if game.state.territories[attack_from].troops >= 3 and len(attack_from_adjuscent_enemies) > 0:
             print("[handle_attack_new_new] --> Attack from territory has {} troops, and is surrounded by {} enemies".format(game.state.territories[attack_from].troops,len(attack_from_adjuscent_enemies)))
 
+            #Getting troops from attack from location
+            attack_from_troops = game.state.territories[attack_from].troops - 1
+
             #Get most surrounded enemy territory
             def territory_most_surrounded(territory):
                 adjuscent = game.state.map.get_adjacent_to(territory)
@@ -461,35 +471,43 @@ def handle_attack_probability(game: Game, bot_state: BotState, query: QueryAttac
                 return len(adjuscent) / len(adjuscent_friendly)
                 
 
-            candidate_attack = sorted(attack_from_adjuscent_enemies,key=territory_most_surrounded)
+            print(f"[handle_attack_probability] Before sorting candidate attack {(time.perf_counter() - start)*1000} milli seconds")
+            candidate_enemy_attack = sorted(attack_from_adjuscent_enemies,key=territory_most_surrounded)
+            print(f"[handle_attack_probability] After sorting candidate attack {(time.perf_counter() - start)*1000} milli seconds")
+
+            #Find maximum amount of enemies around
+            print(f"[handle_attack_probability] Before getting max adjuscent enemies {(time.perf_counter() - start)*1000} milli seconds")
+            max_adjuscent_enemies = max([ game.state.territories[x].troops for x in candidate_enemy_attack])
+            print(f"[handle_attack_probability] After getting max adjuscent enemies {(time.perf_counter() - start)*1000} milli seconds")
+
+
+            #Only atack if you have 3 more than the adjuscent enemy
+            if (attack_from_troops - max_adjuscent_enemies) < 2:
+                print(f"[handle_attack_probability] -- [NEW] Abandoned attack because attack from troops are {attack_from_troops} and max adjuscent enemies are {max_adjuscent_enemies}. Hence it is less than 3")
+                continue
 
             #Get territories where the attack probability is greater than probability threshold 
-            attack_from_troops = game.state.territories[attack_from].troops - 1
-
-            #battleprob,risk_probability
-            p_obj = risk_probability()
-
-            candidate_attack_probability_all = [ (x,p_obj.battleprob(attack_from_troops,game.state.territories[x].troops)) for x in candidate_attack if p_obj.battleprob(attack_from_troops,game.state.territories[x].troops)]
-            candidate_attack_probability = [ (x,p_obj.battleprob(attack_from_troops,game.state.territories[x].troops)) for x in candidate_attack if p_obj.battleprob(attack_from_troops,game.state.territories[x].troops) >= attack_probability_threshold]
-
-            print(f"[handle_attack_probability] --> Attack from {attack_from} with {attack_from_troops} troops all probability: {candidate_attack_probability_all}. Filtered probability {candidate_attack_probability}")
-
-            if len(candidate_attack_probability) == 0:
-                print(f"[handle_attack_probability] --> There is no adjuscent territory available for attack from {attack_from} moving to next")
-                pass
-            else:
-                print(f"[handle_attack_probability] --> Attacking from {attack_from} to {candidate_attack_probability[0][0]} probability of success {candidate_attack_probability[0][1]}")
-                move = game.move_attack(query,attack_from, candidate_attack_probability[0][0], min(3, game.state.territories[attack_from].troops - 1))
-                return move
+            
 
 
-            return game.move_attack_pass(query)
-            move = game.move_attack(query,attack_from, candidate_attack, min(3, game.state.territories[attack_from].troops - 1))
+            #Attack first enemy with an attack probability greater than the threshold
+            for candidate in candidate_enemy_attack:
+                print(f"[handle_attack_probability] Before getting attack success probability {(time.perf_counter() - start)*1000} milli seconds")
+                attack_success_prob = p_obj.battleprob(attack_from_troops,game.state.territories[candidate].troops)
+                print(f"[handle_attack_probability] After getting attack success probability {(time.perf_counter() - start)*1000} milli seconds")
+
+                #Attack first candidate where the attack probability is greater than threshold
+                if attack_success_prob >= attack_probability_threshold:
+                    print(f"[handle_attack_probability] --> Attacking from {attack_from} to {candidate} probability of success {attack_success_prob}")
+                    print(f"[handle_attack_probability] Before return {(time.perf_counter() - start)*1000} milli seconds")
+                    #Attack with a minimum of 3 soldiers of the troops available
+                    return game.move_attack(query,attack_from, candidate, min(3, game.state.territories[attack_from].troops - 1))
         else:
+            print(f"[handle_attack_probability] --> Passing attack from {attack_from}. Reason troops: {game.state.territories[attack_from].troops} or enemies: {attack_from_adjuscent_enemies}")
             pass
             
             
-    print(f"[handle_attack_probability] --> There is no adjuscent territory available for attack al all. Proceeding without attack")
+    print(f"[handle_attack_probability] [CHECK] --> There is no adjuscent territory available for attack at all. Proceeding without attack")
     return game.move_attack_pass(query)
 
 def handle_attack_new_new(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
@@ -505,8 +523,7 @@ def handle_attack_new_new(game: Game, bot_state: BotState, query: QueryAttack) -
 
     print("[handle_attack_new_new] --> Hand attack new new")
 
-    object_t = risk_probability()
-    print("[TEST] --> ",object_t.battleprob(3,3,2))
+    print("[TEST] --> ",p_obj.battleprob(3,3,2))
 
     #battleprob
 
@@ -664,12 +681,13 @@ def handle_troops_after_attack_new(game: Game, bot_state: BotState, query: Query
         #Move troops less adjuscent enemies max
         adjuscent_enemies_max_troops = max([ game.state.territories[x].troops for x in attacking_territory_adjuscent_enemy])
         desired_move_value = game.state.territories[move_attack.attacking_territory].troops - adjuscent_enemies_max_troops
+        troop_move_no = max(move_attack.attacking_troops,desired_move_value)
 
-        print("[handle_troops_after_attack_new] --> Territory {} has {} troops. Max enemy adjuscent is {}. Desired move no is {}".format(move_attack.attacking_territory,game.state.territories[move_attack.attacking_territory].troops,adjuscent_enemies_max_troops,desired_move_value),flush=True)
+        print(f"[handle_troops_after_attack_new] --> Territory {move_attack.attacking_territory} has {game.state.territories[move_attack.attacking_territory].troops} troops. Max enemy adjuscent is {adjuscent_enemies_max_troops}. Desired move no is {desired_move_value} actual no of troops {troop_move_no}",flush=True)
 
         # We will always move the maximum number of troops we can.
         
-        return game.move_troops_after_attack(query, max(move_attack.attacking_troops,desired_move_value))
+        return game.move_troops_after_attack(query,troop_move_no)
 
 def handle_troops_after_attack(game: Game, bot_state: BotState, query: QueryTroopsAfterAttack) -> MoveTroopsAfterAttack:
     """After conquering a territory in an attack, you must move troops to the new territory."""
