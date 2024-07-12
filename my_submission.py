@@ -676,6 +676,7 @@ def handle_distribute_troops_new(game: Game, bot_state: BotState, query: QueryDi
                 break
 
 
+    print(f"[handle_distribute_troops_new] -- Final distribution is: {dict(distributions)}")
     return game.move_distribute_troops(query, distributions)
 
 

@@ -58,3 +58,6 @@ adjacent_territories = game.state.get_all_adjacent_territories(my_territories)
 
 ##---------------------------
 Started decreasing when i changed how troops are distributed after trading in cards
+
+
+# [handle_distribute_troops_new] -- Final distribution is: {24: 3}
