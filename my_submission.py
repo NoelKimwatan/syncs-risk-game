@@ -73,7 +73,8 @@ def main():
 
                 case QueryPlaceInitialTroop() as q:
                     #return handle_place_initial_troop(game, bot_state, q)
-                    return handle_place_initial_troop_with_clusters(game, bot_state, q)
+                    #return handle_place_initial_troop_with_clusters(game, bot_state, q)
+                    return handle_place_initial_troop_with_clusters_new(game, bot_state, q)
 
                 case QueryRedeemCards() as q:
                     return handle_redeem_cards(game, bot_state, q)
@@ -270,6 +271,83 @@ def get_territory_clusters(game:Game):
     # print(f"[Get Cluster Function] -- Cluster dict {cluster_dict}")
     # print(f"[Get Cluster Function] -- My territories {my_territories}")
 
+def handle_place_initial_troop_with_clusters_new(game: Game, bot_state: BotState, query: QueryPlaceInitialTroop) -> MovePlaceInitialTroop:
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+        # We will place troops along the territories on our border.
+    all_border_territories = game.state.get_all_border_territories(
+        game.state.get_territories_owned_by(game.state.me.player_id)
+    )
+
+
+    territory_clusters = get_territory_clusters(game)
+    no_of_clusters = len(set([x for x in territory_clusters.values()]))
+    cluster_list = [[] for x in range(no_of_clusters)]
+
+    for key,value in territory_clusters.items():
+        cluster_list[value].append(key)
+
+    cluster_list_ordered = sorted(cluster_list,key=lambda x: len(x),reverse=True)
+    non_abandoned_border_territories = game.state.get_all_border_territories(cluster_list_ordered[0])
+
+    # print("[handle_place_initial_troop_with_clusters_new] --> Clustered territories ordered {}".format(cluster_list_ordered),flush=True)
+    # print(f"[handle_place_initial_troop_with_clusters_new] - My territories: {my_territories}",flush=True)
+    # print(f"[handle_place_initial_troop_with_clusters_new] - Non abandoned territories: {cluster_list_ordered[0]}",flush=True)
+    # print(f"[handle_place_initial_troop_with_clusters_new] - Non abandoned Border territories: ",non_abandoned_border_territories,flush=True)
+    # print(f"[handle_place_initial_troop_with_clusters_new] - Abandoned border territories: ",list(set(my_territories) - set(cluster_list_ordered[0])),flush=True)
+
+
+    #First place troops on border territories where there is a difference between their no of troops and the maximum no of enemy troops
+    border_territory_placement = []
+    for territory in non_abandoned_border_territories:
+        adjuscent_territory = game.state.map.get_adjacent_to(territory)
+        adjuscent_enemy = list(set(adjuscent_territory) - set(my_territories))
+        max_enemy_troops = max([ game.state.territories[x].troops for x in adjuscent_enemy])
+        difference = max_enemy_troops - game.state.territories[territory].troops
+
+        if difference >= 1:
+            border_territory_placement.append((territory,difference))
+
+    border_territory_placement = sorted(border_territory_placement,key=lambda x: x[1], reverse=True)
+
+    #print(f"[handle_place_initial_troop_with_clusters_new] - Border territory difference is: {border_territory_placement}",flush=True)
+
+    #If there is a border territory with less than the max of its negbouring enemies, add troops there starting with the one with the biggest difference
+    if len(border_territory_placement) > 0:
+        print(f"[handle_place_initial_troop_with_clusters_new] -- Border territory placement: {border_territory_placement}")
+        print(f"[handle_place_initial_troop_with_clusters_new] -- Placing a troop in {border_territory_placement[0][0]} because it has the greatest difference of {border_territory_placement[0][1]}")
+
+        return game.move_place_initial_troop(query, border_territory_placement[0][0])
+    else:
+        #If all the territories have an equal number to the max of their enemy, place troops on a territory with a neighbour thats has most of its adjuscent territories surrounded by ours
+
+        def close_to_surrounded_territory(territory):
+            adjuscent = game.state.map.get_adjacent_to(territory)
+            adjuscent_enemy = list(set(adjuscent) -  set(my_territories) )
+            max_surroundex = (0,0,0) #Percentage,Friendly, Totaal
+            for enemy in adjuscent_enemy:
+                adjuscent_territories = game.state.map.get_adjacent_to(enemy)
+                adjuscent_territories_mine = list(set(my_territories) & set(adjuscent_territories))
+                percentage_surrounded = int((len(adjuscent_territories_mine)/len(adjuscent_territories))*100)
+
+                if max_surroundex[0] < percentage_surrounded:
+                    max_surroundex = (percentage_surrounded,len(adjuscent_territories_mine),len(adjuscent_territories))
+            return max_surroundex
+        
+        #(territory_id, max_percentage_surrounded, no of troops)
+        non_abandoned_border_territories_to_place = [(x,close_to_surrounded_territory(x),game.state.territories[x].troops) for x in non_abandoned_border_territories]
+        non_abandoned_border_territories_to_place = sorted(non_abandoned_border_territories_to_place,key=lambda x: (x[1][0],x[2]),reverse=True)
+        non_abandoned_border_territories_to_place_two = sorted(non_abandoned_border_territories_to_place,key=lambda x: (x[1][0]),reverse=True)
+
+        print(f"[handle_place_initial_troop_with_clusters_new] -- My territories {my_territories}",flush=True)
+        print(f"[handle_place_initial_troop_with_clusters_new] -- Non abandoned territories territories {cluster_list_ordered[0]}",flush=True)
+        print(f"[handle_place_initial_troop_with_clusters_new] -- All territories have an equal number to their largest enemy neighbouring force. place troops on {non_abandoned_border_territories_to_place[0][0]} because it has a nearby enemy territory thats is {non_abandoned_border_territories_to_place[0][1]}% surrounded by our territories",flush=True)
+
+        print(f"[handle_place_initial_troop_with_clusters_new] -- Non abandoned territories to place: {non_abandoned_border_territories_to_place}",flush=True)
+        print(f"[handle_place_initial_troop_with_clusters_new] -- Non abandoned territories to place two: {non_abandoned_border_territories_to_place_two}",flush=True)
+
+        return game.move_place_initial_troop(query, non_abandoned_border_territories_to_place[0][0])
+
+
 def handle_place_initial_troop_with_clusters(game: Game, bot_state: BotState, query: QueryPlaceInitialTroop) -> MovePlaceInitialTroop:
     my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
         # We will place troops along the territories on our border.
@@ -309,7 +387,7 @@ def handle_place_initial_troop_with_clusters(game: Game, bot_state: BotState, qu
 
     print(f"[handle_place_initial_troop_with_clusters] - Border territory difference is: {border_territory_placement}",flush=True)
 
-    #If there is a border territory with less than the max of its negbouring enemies, add troops there starting with the one with the biggest differen
+    #If there is a border territory with less than the max of its negbouring enemies, add troops there starting with the one with the biggest difference
     if len(border_territory_placement) > 0:
         print(f"[handle_place_initial_troop_with_clusters] -- Placing a troop in {border_territory_placement[0][0]} because it has the greatest difference of {border_territory_placement[0][1]}")
         return game.move_place_initial_troop(query, border_territory_placement[0][0])
