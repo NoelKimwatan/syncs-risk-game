@@ -79,8 +79,7 @@ def main():
                     return handle_redeem_cards(game, bot_state, q)
 
                 case QueryDistributeTroops() as q:
-                    #return handle_distribute_troops(game, bot_state, q)
-                    return handle_distribute_troops_new(game, bot_state, q)
+                    return handle_distribute_troops(game, bot_state, q)
 
                 case QueryAttack() as q:
                     #return handle_attack(game, bot_state, q)
@@ -150,16 +149,10 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
                 41: 8,  #Followed by Western Ausralia
                 38: 8   #Finally Eastern Australia
             }
-            # territoryWeight = {
-            #     41:10,  #Most preferred is West Australia
-            #     28:9,   #The South America
-            #     37:8,   #The South Africa
-            #     8:7,    #Wester USA
-            # }
+
             return territoryWeight[territory]
         
-        #preferredStartingPoint = [41,28,37,8]
-        preferredStartingPoint = [8,28,37,41,38]
+        preferredStartingPoint = [41,28,37,8]
         prefferedAvailable = list(set(preferredStartingPoint) & set(unclaimed_territories))
         
         if len(prefferedAvailable) != 0:
@@ -482,7 +475,7 @@ def handle_redeem_cards(game: Game, bot_state: BotState, query: QueryRedeemCards
     print(f"[handle_redeem_cards] -- Handling redeemed cards. No of already redeemed cards is {game.state.card_sets_redeemed}. My cards {cards_remaining}")
 
     ## Change and start redeeming cards when over 12 cards have been redeemed for greater effect
-    if game.state.card_sets_redeemed > 13 and query.cause == "turn_started":
+    if game.state.card_sets_redeemed > 20 and query.cause == "turn_started":
         card_set = game.state.get_card_set(cards_remaining)
         while card_set != None:
             card_sets.append(card_set)
@@ -490,105 +483,6 @@ def handle_redeem_cards(game: Game, bot_state: BotState, query: QueryRedeemCards
             card_set = game.state.get_card_set(cards_remaining)
     print(f"[handle_redeem_cards] -- We have redeemed {len(card_sets)} cards")
     return game.move_redeem_cards(query, [(x[0].card_id, x[1].card_id, x[2].card_id) for x in card_sets])
-
-def handle_distribute_troops_new(game: Game, bot_state: BotState, query: QueryDistributeTroops) -> MoveDistributeTroops:
-    """After you redeem cards (you may have chosen to not redeem any), you need to distribute
-    all the troops you have available across your territories. This can happen at the start of
-    your turn or after killing another player.
-    """
-
-    territory_clusters = get_territory_clusters(game)
-    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
-    no_of_clusters = len(set([x for x in territory_clusters.values()]))
-    cluster_list = [[] for x in range(no_of_clusters)]
-
-    for key,value in territory_clusters.items():
-        cluster_list[value].append(key)
-
-    cluster_list_ordered = sorted(cluster_list,key=lambda x: len(x),reverse=True)
-    non_abandoned_border_territories = game.state.get_all_border_territories(cluster_list_ordered[0])
-
-    print(f"[handle_distribute_troops_new] --> Our cluster: {cluster_list_ordered}",flush=True)
-    print(f"[handle_distribute_troops_new] --> Non abandoned border territories: {non_abandoned_border_territories}",flush=True)
-
-
-    border_territories_enemy_difference = []
-
-    for territory in non_abandoned_border_territories:
-        print(f"[handle_distribute_troops_new] --> Territory: {territory}",flush=True)
-        adjuscent_territory = game.state.map.get_adjacent_to(territory) #my_territories
-        adjuscent_enemy = list(set(adjuscent_territory) - set(my_territories))
-        max_enemy_no = max([game.state.territories[x].troops for x in adjuscent_enemy])
-        difference = max_enemy_no - game.state.territories[territory].troops
-
-        if difference >= 1:
-            border_territories_enemy_difference.append((territory,difference))
-
-    #Order according to difference
-    #sorted_list = sorted(list, key=lambda x: (x[0], -x[1])) - Reference sorting using two fields
-    border_territories_enemy_difference = sorted(border_territories_enemy_difference,key=lambda x: x[1],reverse=True)
-
-
-
-
-    # We will distribute troops across our border territories.
-    total_troops = game.state.me.troops_remaining
-    distributions = defaultdict(lambda: 0)
-
-    # We need to remember we have to place our matching territory bonus
-    # if we have one.
-    if len(game.state.me.must_place_territory_bonus) != 0:
-        assert total_troops >= 2
-        distributions[game.state.me.must_place_territory_bonus[0]] += 2
-        total_troops -= 2
-
-    print(f"[handle_distribute_troops_new] --> We have {total_troops} troops and the difference in our border territories is {border_territories_enemy_difference}",flush=True)
-
-    # Place troops on teritories matching their max adjuscent anemy. When this is over add the reminder on the territpry with most troops. Within the main cluster
-    if len(game.state.recording) < 4000:
-        # troops_per_territory = total_troops // len(non_abandoned_border_territories)
-        # leftover_troops = total_troops % len(non_abandoned_border_territories)
-        # for territory in non_abandoned_border_territories:
-        #     distributions[territory] += troops_per_territory
-
-        for t,difference in border_territories_enemy_difference:
-            #If there is a reminder in the number of troops
-            if total_troops >= 1:
-                assigned_troops = difference if total_troops >= difference else total_troops
-                distributions[t] += assigned_troops
-                total_troops -= assigned_troops
-            else:
-                #Break if no of troops has ended
-                break
-
-        #Distribute left over troops on the border territory with max troops
-        if total_troops >= 1:
-            non_abandoned_border_territories_ordered = sorted(non_abandoned_border_territories,key=lambda x: game.state.territories[x].troops,reverse=True)
-            print(f"[handle_distribute_troops_new] --> There is still {total_troops} troops left. We will add them to {non_abandoned_border_territories_ordered[0]} because it has the max no of troops: {non_abandoned_border_territories_ordered}",flush=True)
-
-            distributions[non_abandoned_border_territories_ordered[0]] += total_troops
-            total_troops = 0
-    
-        print(f"[handle_distribute_troops_new] -- Final distribution is: {dict(distributions)}",flush=True)
-    
-    else:
-        my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
-        weakest_players = sorted(game.state.players.values(), key=lambda x: sum(
-            [game.state.territories[y].troops for y in game.state.get_territories_owned_by(x.player_id)]
-        ))
-
-        for player in weakest_players:
-            bordering_enemy_territories = set(game.state.get_all_adjacent_territories(my_territories)) & set(game.state.get_territories_owned_by(player.player_id))
-            if len(bordering_enemy_territories) > 0:
-                print("my territories", [game.state.map.get_vertex_name(x) for x in my_territories])
-                print("bordering enemies", [game.state.map.get_vertex_name(x) for x in bordering_enemy_territories])
-                print("adjacent to target", [game.state.map.get_vertex_name(x) for x in game.state.map.get_adjacent_to(list(bordering_enemy_territories)[0])])
-                selected_territory = list(set(game.state.map.get_adjacent_to(list(bordering_enemy_territories)[0])) & set(my_territories))[0]
-                distributions[selected_territory] += total_troops
-                break
-
-
-    return game.move_distribute_troops(query, distributions)
 
 
 def handle_distribute_troops(game: Game, bot_state: BotState, query: QueryDistributeTroops) -> MoveDistributeTroops:
