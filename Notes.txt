@@ -31,7 +31,8 @@ game.state:
         11.me
 
 
-
+game.state.me
+--player_id=4 team_id=4 troops_remaining=10 alive=True cards=[CardModel(card_id=35, territory_id=35, symbol='Cavalry'), CardModel(card_id=19, territory_id=19, symbol='Cavalry'), CardModel(card_id=32, territory_id=32, symbol='Infantry'), CardModel(card_id=42, territory_id=None, symbol='Wildcard'), CardModel(card_id=41, territory_id=41, symbol='Artillery')] must_place_territory_bonus=[]
 
 
 move_attack: record_type='move_attack' move_by_player=4 attacking_territory=29 defending_territory=30 attacking_troops=3

@@ -478,6 +478,8 @@ def handle_redeem_cards(game: Game, bot_state: BotState, query: QueryRedeemCards
     # We will always redeem the minimum number of card sets we can until the 12th card set has been redeemed.
     # This is just an arbitrary choice to try and save our cards for the late game.
 
+    print(f"[handle_redeem_cards] -- My current cards no: {len(game.state.me.cards)} which are {game.state.me.cards}")
+
     # We always have to redeem enough cards to reduce our card count below five.
     card_sets: list[Tuple[CardModel, CardModel, CardModel]] = []
     cards_remaining = game.state.me.cards.copy()
@@ -502,14 +504,16 @@ def handle_redeem_cards(game: Game, bot_state: BotState, query: QueryRedeemCards
     #         cards_remaining = [card for card in cards_remaining if card not in card_set]
     #         card_set = game.state.get_card_set(cards_remaining)
 
+    print(f"[handle_redeem_cards] -- Handling redeemed cards. No of already redeemed cards is {game.state.card_sets_redeemed}. My cards {cards_remaining}")
+
     ## Change and start redeeming cards when over 12 cards have been redeemed for greater effect
-    if game.state.card_sets_redeemed > 12 and query.cause == "turn_started":
+    if game.state.card_sets_redeemed > 20 and query.cause == "turn_started":
         card_set = game.state.get_card_set(cards_remaining)
         while card_set != None:
             card_sets.append(card_set)
             cards_remaining = [card for card in cards_remaining if card not in card_set]
             card_set = game.state.get_card_set(cards_remaining)
-
+    print(f"[handle_redeem_cards] -- We have redeemed {len(card_sets)} cards")
     return game.move_redeem_cards(query, [(x[0].card_id, x[1].card_id, x[2].card_id) for x in card_sets])
 
 
