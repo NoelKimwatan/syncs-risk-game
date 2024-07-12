@@ -51,3 +51,10 @@ You can dynamically change how many troops you attack a territory with from 3 to
 # We will try to always pick new territories that are next to ones that we own,
 # or a random one if that isn't possible.
 adjacent_territories = game.state.get_all_adjacent_territories(my_territories)
+
+
+
+
+
+##---------------------------
+Started decreasing when i changed how troops are distributed after trading in cards

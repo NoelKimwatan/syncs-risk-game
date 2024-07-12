@@ -87,7 +87,8 @@ def main():
                     #return handle_attack(game, bot_state, q)
                     #return handle_attack_new_new(game, bot_state, q)
                     #return handle_attack_probability(game, bot_state, q)
-                    return handle_attack_probability_simplified(game, bot_state, q)
+                    #return handle_attack_probability_simplified(game, bot_state, q)
+                    return handle_attack_probability_simplifie_new(game, bot_state, q)
 
                 case QueryTroopsAfterAttack() as q:
                     #return handle_troops_after_attack(game, bot_state, q)
@@ -144,23 +145,30 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
 
         #Give each preffered territory a weight
         def territorySelectionPreference(territory):
-            territoryWeight = {
-                8:15,
-                28: 10, #South America is the most preffered
-                37: 9,  #Followed by South Africa
-                41: 8,  #Followed by Western Ausralia
-                38: 8   #Finally Eastern Australia
-            }
+            # territoryWeight = {
+            #     8:15,   #Wester USA
+            #     28: 10, #South America is the most preffered
+            #     37: 9,  #Followed by South Africa
+            #     41: 8,  #Followed by Western Ausralia
+            #     38: 8   #Finally Eastern Australia
+            # }
             # territoryWeight = {
             #     41:10,  #Most preferred is West Australia
             #     28:9,   #The South America
             #     37:8,   #The South Africa
             #     8:7,    #Wester USA
             # }
+            territoryWeight = {
+                40:15,   #Wester Australia
+                13: 10, #South America is the most preffered
+                30: 9,  #Followed by South Africa
+                21: 8,  #Followed by Western Ausralia
+            }
             return territoryWeight[territory]
         
         #preferredStartingPoint = [41,28,37,8]
-        preferredStartingPoint = [8,28,37,41,38]
+        #preferredStartingPoint = [8,28,37,41,38]
+        preferredStartingPoint = [40,13,30,21]
         prefferedAvailable = list(set(preferredStartingPoint) & set(unclaimed_territories))
         
         if len(prefferedAvailable) != 0:
@@ -623,7 +631,9 @@ def handle_distribute_troops_new(game: Game, bot_state: BotState, query: QueryDi
     print(f"[handle_distribute_troops_new] --> We have {total_troops} troops and the difference in our border territories is {border_territories_enemy_difference}",flush=True)
 
     # Place troops on teritories matching their max adjuscent anemy. When this is over add the reminder on the territpry with most troops. Within the main cluster
-    if len(game.state.recording) < 4000:
+    #if len(game.state.recording) < 1500:
+    #Start doom stacking when the number of redeemed cards is over 13
+    if game.state.card_sets_redeemed > 13:
         # troops_per_territory = total_troops // len(non_abandoned_border_territories)
         # leftover_troops = total_troops % len(non_abandoned_border_territories)
         # for territory in non_abandoned_border_territories:
@@ -720,6 +730,106 @@ def handle_distribute_troops(game: Game, bot_state: BotState, query: QueryDistri
 
     return game.move_distribute_troops(query, distributions)
 
+#Only attack to a territory where you will have more troops than your neighbouring enemies
+def handle_attack_probability_simplifie_new(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
+    start = time.perf_counter()
+     # We will attack someone.
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    bordering_territories = game.state.get_all_adjacent_territories(my_territories)
+    
+    #Attack from territory with the most troops
+    my_territory_sorted = sorted(my_territories, key= lambda x: game.state.territories[x].troops,reverse=True )
+
+    #We will decide on the territory to attack using the probability equation
+    for attack_from in my_territory_sorted:
+        print(f"[handle_attack_probability_simplifie_new] Attack from for loop {(time.perf_counter() - start)*1000} milli seconds")
+        #Attack territory with mostly surrounded by my territories
+        attack_from_adjuscent = game.state.map.get_adjacent_to(attack_from)
+        attack_from_adjuscent_enemies = list(set(attack_from_adjuscent) - set(my_territories))
+
+        #Only try to attack if attack from territory has atleast 3 troops
+        if game.state.territories[attack_from].troops >= 3 and len(attack_from_adjuscent_enemies) > 0:
+            print("[handle_attack_probability_simplifie_new] --> Attack from territory has {} troops, and is surrounded by {} enemies".format(game.state.territories[attack_from].troops,len(attack_from_adjuscent_enemies)))
+
+            #Getting troops from attack from location
+            attack_from_troops = game.state.territories[attack_from].troops - 1
+            attack_from_no_of_troops = game.state.territories[attack_from].troops
+
+            #Get most surrounded enemy territory
+            def territory_most_surrounded(territory):
+                adjuscent = game.state.map.get_adjacent_to(territory)
+                adjuscent_friendly = list(set(game.state.map.get_adjacent_to(territory)) & set(game.state.get_territories_owned_by(game.state.me.player_id)))
+                return len(adjuscent) / len(adjuscent_friendly)
+                
+
+            print(f"[handle_attack_probability_simplifie_new] Before sorting candidate attack {(time.perf_counter() - start)*1000} milli seconds")
+            candidate_enemy_attack = sorted(attack_from_adjuscent_enemies,key=territory_most_surrounded)
+            print(f"[handle_attack_probability_simplifie_new] After sorting candidate attack {(time.perf_counter() - start)*1000} milli seconds")
+
+            candidate_enemy_attack_and_troops = [(x,game.state.territories[x].troops) for x in candidate_enemy_attack]
+
+
+            print(f"[handle_attack_probability_simplifie_new] --> [NEW-TEST] Territory {attack_from} troops {attack_from_no_of_troops}. Possible candidates to attack and troops: {candidate_enemy_attack_and_troops}",flush=True)
+
+
+            #Get territories where the attack probability is greater than probability threshold 
+        
+
+            #Attack first enemy with an attack probability greater than the threshold, and where you will have more troops than your new adjuscent neighbours
+            for candidate in candidate_enemy_attack:
+                #Only atack if you have 3 more than the adjuscent enemy except the one you are attacking
+                #Find maximum amount of adjuscent enemies around except the one attacking
+                to_attack_enemy = to_attack(attack_from_troops,game.state.territories[candidate].troops)
+
+                print(f"[handle_attack_probability_simplifie_new] -- Thinking of attacking {candidate} which has {game.state.territories[candidate].troops} troops. From {attack_from} which has {game.state.territories[attack_from].troops} troops Probability of attack success high ? {to_attack_enemy}",flush=True)
+
+                #Attack first candidate where the attack probability is greater than threshold
+                if to_attack_enemy:
+                    #If probability of attack success is high. Check if you have greater than the new territories enemies
+                    potential_new_adjuscent = game.state.map.get_adjacent_to(candidate)
+                    potential_new_adjuscent_enemies = list(set(potential_new_adjuscent) - set(my_territories))
+                    potential_new_adjuscent_enemies_size = [(x,game.state.territories[x].troops)for x in potential_new_adjuscent_enemies]
+
+                    if len(potential_new_adjuscent_enemies) > 1:
+                        max_new_possible_enemies = max(potential_new_adjuscent_enemies_size,key=lambda x: x[1])
+                    else:
+                        max_new_possible_enemies = (0,0)
+
+                    print(f"[handle_attack_probability_simplifie_new]--[TEST]  -- Thinking of attacking {candidate} which has {game.state.territories[candidate].troops} troops. From {attack_from} which has {game.state.territories[attack_from].troops} troops Probability of attack success high ? {to_attack_enemy}. New possible enemies are: {potential_new_adjuscent_enemies_size}. Max: {max_new_possible_enemies}",flush=True)
+
+
+                    
+                    current_attack_from_adjuscent_enemies = list(set(attack_from_adjuscent) - set(my_territories))
+                    print(f"[handle_attack_probability_simplifie_new]--[TEST] Current attack adjuscent enemies: {current_attack_from_adjuscent_enemies}",flush=True)
+                    current_attack_from_adjuscent_enemies.remove(candidate)
+                    print(f"[handle_attack_probability_simplifie_new]--[TEST] After remove Current attack adjuscent enemies: {current_attack_from_adjuscent_enemies}",flush=True)
+
+                    if len(current_attack_from_adjuscent_enemies) > 1:
+                        current_max_enemy = max(current_attack_from_adjuscent_enemies,key=lambda x: game.state.territories[x].troops)
+                    else:
+                        current_max_enemy = 0
+
+                    print(f"[handle_attack_probability_simplifie_new]--[TEST]  --> Current max adjuscent {current_max_enemy}")
+
+                    #Will change this later to factor in the troops that will move
+                    if (attack_from_troops - game.state.territories[candidate].troops) >= max_new_possible_enemies[1]:
+                        print(f"[handle_attack_probability_simplifie_new]--[TEST]  --> Attacking from {attack_from} which has {attack_from_no_of_troops} to {candidate} which has {game.state.territories[candidate].troops} troops")
+                        print(f"[handle_attack_probability_simplifie_new]--[TEST]  Before return {(time.perf_counter() - start)*1000} milli seconds")
+                        #Attack with a minimum of 3 soldiers of the troops available
+                        return game.move_attack(query,attack_from, candidate, min(3, attack_from_troops))
+                    else:
+                        print(f"[handle_attack_probability_simplifie_new]--[TEST] --> Not attacking  from {attack_from} which has {attack_from_no_of_troops} to {candidate} which has {game.state.territories[candidate].troops} troops. Because I will have new adjuscent enemies {potential_new_adjuscent_enemies_size} wtih a max of {max_new_possible_enemies}")
+                        pass
+                else:
+                    print(f"[handle_attack_probability_simplifie_new] --> Not Attacking from {attack_from} which has {attack_from_no_of_troops} to {candidate} which has {game.state.territories[candidate].troops} troops because probability of success and below threshold")
+
+        else:
+            print(f"[handle_attack_probability_simplifie_new] --> Passing attack from {attack_from}. Reason troops: {game.state.territories[attack_from].troops} or enemies: {attack_from_adjuscent_enemies}")
+            pass
+            
+            
+    print(f"[handle_attack_probability_simplifie_new] [CHECK] --> There is no adjuscent territory available for attack at all. Proceeding without attack")
+    return game.move_attack_pass(query)
 
 def handle_attack_probability_simplified(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
     start = time.perf_counter()
