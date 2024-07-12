@@ -73,7 +73,7 @@ def main():
 
                 case QueryPlaceInitialTroop() as q:
                     #return handle_place_initial_troop(game, bot_state, q)
-                    return handle_place_initial_troop_new(game, bot_state, q)
+                    return handle_place_initial_troop_with_clusters(game, bot_state, q)
 
                 case QueryRedeemCards() as q:
                     return handle_redeem_cards(game, bot_state, q)
@@ -230,7 +230,123 @@ def get_home_base_territories(game:Game, home_base:int):
     get_adjuscent_owned_territories(home_base)
 
     return list(home_base_territories)
-                
+
+
+def get_territory_clusters(game:Game):
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    checked = []
+    cluster_dict = dict()
+    cluster_count = 0
+
+    def get_cluster(territory):
+        checked.append(territory)
+        adjuscent = game.state.map.get_adjacent_to(territory)
+        adjuscent_friendly = list(set(my_territories) & set(adjuscent))
+        adjuscent_unchecked = [x for x in adjuscent_friendly if x not in checked]
+
+        if len(adjuscent_unchecked) != 0:
+            for t in adjuscent_unchecked:
+                cluster_dict[t] = cluster_count
+                get_cluster(t)
+
+    for index,territory in enumerate(my_territories):    
+        # print(f"[Get Cluster Function] -- Index: {index} Territory: {territory}")    
+        if cluster_dict.get(territory,None) == None:
+            cluster_dict[territory] = cluster_count
+            get_cluster(territory)
+            cluster_count = cluster_count + 1
+
+    #Cluster dict {2: 0, 8: 0, 3: 0, 6: 0, 5: 0, 7: 0, 28: 1, 38: 2}
+    return cluster_dict
+
+    # print(f"[Get Cluster Function] -- Cluster dict {cluster_dict}")
+    # print(f"[Get Cluster Function] -- My territories {my_territories}")
+
+def handle_place_initial_troop_with_clusters(game: Game, bot_state: BotState, query: QueryPlaceInitialTroop) -> MovePlaceInitialTroop:
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+        # We will place troops along the territories on our border.
+    all_border_territories = game.state.get_all_border_territories(
+        game.state.get_territories_owned_by(game.state.me.player_id)
+    )
+
+    territory_clusters = get_territory_clusters(game)
+    no_of_clusters = len(set([x for x in territory_clusters.values()]))
+    cluster_list = [[] for x in range(no_of_clusters)]
+
+    for key,value in territory_clusters.items():
+        cluster_list[value].append(key)
+
+    print("[handle_place_initial_troop_with_clusters] --> Clustered territories {}".format(cluster_list),flush=True)
+
+    non_abandoned_border = []
+
+    for border_t in all_border_territories:
+        adjuscent = game.state.map.get_adjacent_to(border_t)
+        adjuscent_owned = list(set(my_territories) & set(adjuscent))
+
+        #Adjuscent friendly need to be more than 1
+        if len(adjuscent_owned) > 1:
+            non_abandoned_border.append(border_t)
+
+    print("[handle_place_initial_troop_with_clusters] - Border territories: ",all_border_territories,flush=True)
+    print("[handle_place_initial_troop_with_clusters] - Non abandoned Border territories: ",non_abandoned_border,flush=True)
+
+
+    #Get friendly territory difference
+    def get_enemy_terriroty_troops_difference(friendly_territories):
+        border_territory_placement = []
+        for friendly in friendly_territories:
+            adjuscent = game.state.map.get_adjacent_to(friendly)
+            adjuscent_enemy = list(set(adjuscent) - set(my_territories))
+            enemy_troops = sum([ game.state.territories[x].troops for x in adjuscent_enemy])
+            difference = enemy_troops - game.state.territories[friendly].troops
+
+            if difference > 1:
+                border_territory_placement.append((friendly,difference))
+
+        border_territory_placement = sorted(border_territory_placement, key=lambda x: x[1],reverse=True)
+        return border_territory_placement
+
+    #If there are non abandoned territories
+
+    if len(non_abandoned_border) > 0:
+        # for border_t in non_abandoned_border:
+        #     adjuscent = game.state.map.get_adjacent_to(border_t)
+        #     adjuscent_enemy = list(set(adjuscent) - set(my_territories))
+        #     enemy_troops = sum([ game.state.territories[x].troops for x in adjuscent_enemy])
+        #     difference = enemy_troops - game.state.territories[border_t].troops
+
+        #     if difference > 1:
+        #         border_territory_placement.append((border_t,difference))
+
+        border_territory_placement = get_enemy_terriroty_troops_difference(non_abandoned_border)
+        print("[handle_place_initial_troop_with_clusters] - Non abandoned border territories is greater than 0")
+        print("[handle_place_initial_troop_with_clusters] - Border territory placement: ",border_territory_placement,flush=True)
+
+        if len(border_territory_placement) >=1:
+            return game.move_place_initial_troop(query, border_territory_placement[0][0])
+        else:
+            max_troops = max(non_abandoned_border,key=lambda x: game.state.territories[x].troops)
+            return game.move_place_initial_troop(query, max_troops)
+        
+    #If there are no non abandoned territories 
+    else:
+        print("[handle_place_initial_troop_with_clusters] - Non abandoned border territories is 0")
+        home_base_territories = get_home_base_territories(game,home_base)
+        home_base_border_territories = list(set(home_base_territories) & set(all_border_territories))
+
+        home_base_border_territory_placement = get_enemy_terriroty_troops_difference(home_base_border_territories)
+
+        print("[handle_place_initial_troop_with_clusters] - Home base territories: ",home_base_territories)
+        print("[handle_place_initial_troop_with_clusters] - Home base border territories: ",home_base_border_territory_placement)
+
+        if len(home_base_border_territory_placement) >= 1:
+            return game.move_place_initial_troop(query, home_base_border_territory_placement[0][0])
+        else:
+            max_troops = max(home_base_territories,key=lambda x: game.state.territories[x].troops)
+            return game.move_place_initial_troop(query, max_troops)
+
+
 
 #Place troops on territories that have a friendlies, when a territory has no friendly troop around it, abandone it
 def handle_place_initial_troop_new(game: Game, bot_state: BotState, query: QueryPlaceInitialTroop) -> MovePlaceInitialTroop:
@@ -239,6 +355,8 @@ def handle_place_initial_troop_new(game: Game, bot_state: BotState, query: Query
     all_border_territories = game.state.get_all_border_territories(
         game.state.get_territories_owned_by(game.state.me.player_id)
     )
+
+    
 
     non_abandoned_border = []
 
@@ -384,8 +502,8 @@ def handle_redeem_cards(game: Game, bot_state: BotState, query: QueryRedeemCards
     #         cards_remaining = [card for card in cards_remaining if card not in card_set]
     #         card_set = game.state.get_card_set(cards_remaining)
 
-    ## Change and start redeeming cards whenever we have more than 3 cards
-    if game.state.card_sets_redeemed > 6 and query.cause == "turn_started":
+    ## Change and start redeeming cards when over 12 cards have been redeemed for greater effect
+    if game.state.card_sets_redeemed > 12 and query.cause == "turn_started":
         card_set = game.state.get_card_set(cards_remaining)
         while card_set != None:
             card_sets.append(card_set)
@@ -761,6 +879,10 @@ def handle_attack(game: Game, bot_state: BotState, query: QueryAttack) -> Union[
     return game.move_attack_pass(query)
 
 
+
+
+
+
 def handle_troops_after_attack_new(game: Game, bot_state: BotState, query: QueryTroopsAfterAttack) -> MoveTroopsAfterAttack:
     # First we need to get the record that describes the attack, and then the move that specifies
     # which territory was the attacking territory.
@@ -772,6 +894,11 @@ def handle_troops_after_attack_new(game: Game, bot_state: BotState, query: Query
 
     attacking_territory_adjuscent = game.state.map.get_adjacent_to(attacking_territory)
     attacking_territory_adjuscent_enemy = list(set(attacking_territory_adjuscent) - set(my_territories))
+
+    # print(f"[handle_troops_after_attack_new] --[NEW-TEST] --> Details about game.state.mao {game.state.map} game state.map. Trying methods such as _continents: {game.state.map._continents} and _edges: {game.state.map._edges} and _vertex_names: {game.state.map._vertex_names} and get_continents: {game.state.map.get_continents} and get_vertex_name: {game.state.map.get_vertex_name} and get_vertices: {game.state.map.get_vertices} and is_adjacent: {game.state.map.is_adjacent}")
+
+
+    # #['__class__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__', '__weakref__', '_check_graph_validity', '_continent_bonuses', '_continents', '_edges', '_vertex_names', '_vertices', 'get_adjacent_to', 'get_continent_bonus', 'get_continents', 'get_vertex_name', 'get_vertices', 'is_adjacent']
 
     if len(attacking_territory_adjuscent_enemy) == 0:
         print("[handle_troops_after_attack_new] --> There are no adjuscent enemies around from territory",flush=True)
