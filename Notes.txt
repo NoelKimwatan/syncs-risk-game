@@ -74,3 +74,6 @@ Important: Once you get to attack mode dont care if the territory you are moving
 Add troops to the territory closest to the weakes player that has the most troops
 
 After war zone decrease attack threshold
+
+
+###Before attack mode, should we attack weakes player or player we have most surrounded

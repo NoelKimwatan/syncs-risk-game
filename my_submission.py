@@ -71,7 +71,7 @@ def main():
         print("[Test] - While True",flush=True)
 
         if len(game.state.recording) >= start_attack_mode:
-            attack_probability_threshold = 50
+            attack_probability_threshold = 0.75
 
 
 
