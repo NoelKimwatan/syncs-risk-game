@@ -841,6 +841,8 @@ def handle_attack_with_probability_attack_weakest(game: Game, bot_state: BotStat
     weakest_player = find_weakest_players(game)
 
     print(f"[handle_attack_with_probability_attack_weakest] -- Weakest player {weakest_player}")
+
+    print(f"[handle_attack_with_probability_attack_weakest][TEST] -- Attack threshold: {attack_probability_threshold}")
   
     #We will decide on the territory to attack using the probability equation
     for attack_from in my_territory_sorted:
