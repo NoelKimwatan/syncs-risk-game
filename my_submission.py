@@ -549,6 +549,8 @@ def handle_redeem_cards(game: Game, bot_state: BotState, query: QueryRedeemCards
 
     print(f"[handle_redeem_cards] -- Handling redeemed cards. No of already redeemed cards is {game.state.card_sets_redeemed}. My cards {cards_remaining}")
 
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+
     ## Change and start redeeming cards when over 12 cards have been redeemed for greater effect
     if game.state.card_sets_redeemed > 13 and query.cause == "turn_started":
         card_set = game.state.get_card_set(cards_remaining)
@@ -556,6 +558,14 @@ def handle_redeem_cards(game: Game, bot_state: BotState, query: QueryRedeemCards
             card_sets.append(card_set)
             cards_remaining = [card for card in cards_remaining if card not in card_set]
             card_set = game.state.get_card_set(cards_remaining)
+    elif len(my_territories) <= 1:
+        print(f"[handle_redeem_cards] -- I only have 1 territory left so redeem all cards!!!")
+        card_set = game.state.get_card_set(cards_remaining)
+        while card_set != None:
+            card_sets.append(card_set)
+            cards_remaining = [card for card in cards_remaining if card not in card_set]
+            card_set = game.state.get_card_set(cards_remaining)
+        #Redeem cards if i only have 1 territory left remaining
     print(f"[handle_redeem_cards] -- We have redeemed {len(card_sets)} cards")
     return game.move_redeem_cards(query, [(x[0].card_id, x[1].card_id, x[2].card_id) for x in card_sets])
 
