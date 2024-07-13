@@ -1152,15 +1152,20 @@ def handle_attack(game: Game, bot_state: BotState, query: QueryAttack) -> Union[
 
 def handle_troops_after_attack_new(game: Game, bot_state: BotState, query: QueryTroopsAfterAttack) -> MoveTroopsAfterAttack:
     # First we need to get the record that describes the attack, and then the move that specifies
-    # which territory was the attacking territory.
+    # which territory was the attacking territory.\
+    start = time.perf_counter()
+    print(f"[handle_troops_after_attack_new] Start {(time.perf_counter() - start)*1000} milli seconds",flush=True)
     record_attack = cast(RecordAttack, game.state.recording[query.record_attack_id])
     move_attack = cast(MoveAttack, game.state.recording[record_attack.move_attack_id])
     my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
     attacking_territory = move_attack.attacking_territory
     #defending_territory = move_attack.defending_territory
+    print(f"[handle_troops_after_attack_new] After getting initial variables {(time.perf_counter() - start)*1000} milli seconds",flush=True)
 
     attacking_territory_adjuscent = game.state.map.get_adjacent_to(attacking_territory)
     attacking_territory_adjuscent_enemy = list(set(attacking_territory_adjuscent) - set(my_territories))
+
+    print(f"[handle_troops_after_attack_new] After getting second set of initial variables {(time.perf_counter() - start)*1000} milli seconds",flush=True)
 
     # print("",flush=True)
     # print(f"[handle_troops_after_attack_new_test] -- Query: {query}. ")
@@ -1173,14 +1178,18 @@ def handle_troops_after_attack_new(game: Game, bot_state: BotState, query: Query
 
     # #['__class__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__', '__weakref__', '_check_graph_validity', '_continent_bonuses', '_continents', '_edges', '_vertex_names', '_vertices', 'get_adjacent_to', 'get_continent_bonus', 'get_continents', 'get_vertex_name', 'get_vertices', 'is_adjacent']
 
+    print(f"[handle_troops_after_attack_new] Before for loops {(time.perf_counter() - start)*1000} milli seconds",flush=True)
     if len(attacking_territory_adjuscent_enemy) == 0:
+        print(f"[handle_troops_after_attack_new] In first for loop {(time.perf_counter() - start)*1000} milli seconds",flush=True)
         print("[handle_troops_after_attack_new] --> There are no adjuscent enemies around from territory",flush=True)
         territory_troops = game.state.territories[move_attack.attacking_territory].troops - 1
-        print("[handle_troops_after_attack_new] --> We are therefore moving {} troops".format(territory_troops))
+        print("[handle_troops_after_attack_new] --> We are therefore moving {} troops".format(territory_troops),flush=True)
         #Move max
+        print(f"[handle_troops_after_attack_new] Before first return (No adjuscent enemies) {(time.perf_counter() - start)*1000} milli seconds",flush=True)
         return game.move_troops_after_attack(query,territory_troops)
     else:
         #Move troops less adjuscent enemies max
+        print(f"[handle_troops_after_attack_new] Start of second if ( adjuscent enemies) {(time.perf_counter() - start)*1000} milli seconds",flush=True)
         adjuscent_enemies_max_troops = max([ game.state.territories[x].troops for x in attacking_territory_adjuscent_enemy])
         desired_move_value = game.state.territories[move_attack.attacking_territory].troops - adjuscent_enemies_max_troops
         troop_move_no = max(move_attack.attacking_troops,desired_move_value)
@@ -1188,7 +1197,7 @@ def handle_troops_after_attack_new(game: Game, bot_state: BotState, query: Query
         print(f"[handle_troops_after_attack_new] --> Territory {move_attack.attacking_territory} has {game.state.territories[move_attack.attacking_territory].troops} troops. Max enemy adjuscent is {adjuscent_enemies_max_troops}. Desired move no is {desired_move_value} actual no of troops {troop_move_no}",flush=True)
 
         # We will always move the maximum number of troops we can.
-        
+        print(f"[handle_troops_after_attack_new] Second if Before return {(time.perf_counter() - start)*1000} milli seconds",flush=True)
         return game.move_troops_after_attack(query,troop_move_no)
 
 def handle_troops_after_attack(game: Game, bot_state: BotState, query: QueryTroopsAfterAttack) -> MoveTroopsAfterAttack:
