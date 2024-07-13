@@ -52,6 +52,10 @@ def main():
     global p_obj
     p_obj = risk_probability()
 
+    #When to start doom attack
+    global start_attack_mode
+    start_attack_mode = 500
+
 
 
 
@@ -95,7 +99,9 @@ def main():
 
                 case QueryTroopsAfterAttack() as q:
                     #return handle_troops_after_attack(game, bot_state, q)
-                    return handle_troops_after_attack_new(game, bot_state, q)
+                    #return handle_troops_after_attack_new(game, bot_state, q)
+                    return handle_troops_after_attack_with_tactic_change(game, bot_state, q)
+                    
 
                 case QueryDefend() as q:
                     return handle_defend(game, bot_state, q)
@@ -609,7 +615,7 @@ def handle_distribute_troops_towards_weakest(game: Game, bot_state: BotState, qu
 
 
     #First distribute troops to match the highest neighbour in earlier stages of game
-    if len(game.state.recording) < 500:
+    if len(game.state.recording) < start_attack_mode:
         territory_clusters = get_territory_clusters(game)
         no_of_clusters = len(set([x for x in territory_clusters.values()]))
         cluster_list = [[] for x in range(no_of_clusters)]
@@ -884,9 +890,10 @@ def handle_attack_with_probability_attack_weakest(game: Game, bot_state: BotStat
                     return  len(adjuscent_friendly) / len(adjuscent)
                 
                 candidate_enemy_attack = sorted(adjuscent_enemy_player,key=territory_most_surrounded,reverse=True)
-                candidate_enemy_attack_and_troops = [(x,game.state.territories[x].troops) for x in candidate_enemy_attack]
+                #()
+                candidate_enemy_attack_and_troops = [(x,game.state.territories[x].troops,territory_most_surrounded(x)) for x in candidate_enemy_attack]
 
-                print(f"[handle_attack_with_probability_attack_weakest] -- Candidates to attack and troops: {candidate_enemy_attack_and_troops}",flush=True)
+                print(f"[handle_attack_with_probability_attack_weakest] -- Candidates to attack and troops: {candidate_enemy_attack_and_troops} -> (territoryid,troops in territory, percentage surrounded)",flush=True)
 
                 for candidate in candidate_enemy_attack:
                 #Only atack if you have 3 more than the adjuscent enemy except the one you are attacking
@@ -1346,7 +1353,50 @@ def handle_attack(game: Game, bot_state: BotState, query: QueryAttack) -> Union[
     return game.move_attack_pass(query)
 
 
+##if len(game.state.recording) < start_attack_mode:
+def handle_troops_after_attack_with_tactic_change(game: Game, bot_state: BotState, query: QueryTroopsAfterAttack) -> MoveTroopsAfterAttack:
+    # First we need to get the record that describes the attack, and then the move that specifies
+    # which territory was the attacking territory.\
+    start = time.perf_counter()
+    record_attack = cast(RecordAttack, game.state.recording[query.record_attack_id])
+    move_attack = cast(MoveAttack, game.state.recording[record_attack.move_attack_id])
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    attacking_territory = move_attack.attacking_territory
+    #defending_territory = move_attack.defending_territory
+    print(f"[handle_troops_after_attack_new] After getting initial variables {(time.perf_counter() - start)*1000} milli seconds",flush=True)
 
+    attacking_territory_adjuscent = game.state.map.get_adjacent_to(attacking_territory)
+    attacking_territory_adjuscent_enemy = list(set(attacking_territory_adjuscent) - set(my_territories))
+
+    print(f"[handle_troops_after_attack_new] After getting second set of initial variables {(time.perf_counter() - start)*1000} milli seconds",flush=True)
+
+    #If below attack mode, leave some troops behind to guard runback
+    if len(game.state.recording) < start_attack_mode:
+        print(f"[handle_troops_after_attack_new] Before for loops {(time.perf_counter() - start)*1000} milli seconds",flush=True)
+        if len(attacking_territory_adjuscent_enemy) == 0:
+            print(f"[handle_troops_after_attack_new] In first for loop {(time.perf_counter() - start)*1000} milli seconds",flush=True)
+            print("[handle_troops_after_attack_new] --> There are no adjuscent enemies around from territory",flush=True)
+            territory_troops = game.state.territories[move_attack.attacking_territory].troops - 1
+            print("[handle_troops_after_attack_new] --> We are therefore moving {} troops".format(territory_troops),flush=True)
+            #Move max
+            print(f"[handle_troops_after_attack_new] Before first return (No adjuscent enemies) {(time.perf_counter() - start)*1000} milli seconds",flush=True)
+            return game.move_troops_after_attack(query,territory_troops)
+        else:
+            #Move troops less adjuscent enemies max
+            print(f"[handle_troops_after_attack_new] Start of second if ( adjuscent enemies) {(time.perf_counter() - start)*1000} milli seconds",flush=True)
+            adjuscent_enemies_max_troops = max([ game.state.territories[x].troops for x in attacking_territory_adjuscent_enemy])
+            desired_move_value = game.state.territories[move_attack.attacking_territory].troops - adjuscent_enemies_max_troops
+            troop_move_no = max(move_attack.attacking_troops,desired_move_value)
+
+            print(f"[handle_troops_after_attack_new] --> Territory {move_attack.attacking_territory} has {game.state.territories[move_attack.attacking_territory].troops} troops. Max enemy adjuscent is {adjuscent_enemies_max_troops}. Desired move no is {desired_move_value} actual no of troops {troop_move_no}",flush=True)
+
+            # We will always move the maximum number of troops we can.
+            print(f"[handle_troops_after_attack_new] Second if Before return {(time.perf_counter() - start)*1000} milli seconds",flush=True)
+            return game.move_troops_after_attack(query,troop_move_no)
+    else:
+        #If greater than attack mode, move all troops
+        territory_troops = game.state.territories[move_attack.attacking_territory].troops - 1
+        return game.move_troops_after_attack(query,territory_troops)
 
 
 
