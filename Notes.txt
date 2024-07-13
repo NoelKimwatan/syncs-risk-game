@@ -72,3 +72,5 @@ To check
 Important: Once you get to attack mode dont care if the territory you are moving too has more troops just attack if you can win
 
 Add troops to the territory closest to the weakes player that has the most troops
+
+After war zone decrease attack threshold

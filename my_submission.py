@@ -68,6 +68,13 @@ def main():
         query = game.get_next_query()
         #print("Player: {}".format(game.state.me.player_id),flush=True)
 
+        print("[Test] - While True",flush=True)
+
+        if len(game.state.recording) >= start_attack_mode:
+            attack_probability_threshold = 50
+
+
+
 
         # Based on the type of query, respond with the correct move.
         def choose_move(query: QueryType) -> MoveType:
@@ -128,7 +135,6 @@ def find_weakest_players(game:Game):
     #(player_id,no_of_troops,no_of_cards)
     return alive_players_troops
            
-
 def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTerritory) -> MoveClaimTerritory:
     """At the start of the game, you can claim a single unclaimed territory every turn 
     until all the territories have been claimed by players."""
@@ -213,42 +219,8 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
         
     return game.move_claim_territory(query, selected_territory)
 
-# def connected_to_base(game:Game,territories:list,checked:list):
-#     territories_connected_to_base = set()
-#     my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
-
-#     for territory in territories:
-#         adjuscent_territories = game.state.map.get_adjacent_to(territory)
-#         adjuscent_territories_owned = list(set(adjuscent_territories) & set(my_territories))
-#         checked.append(territory)
-
-#         if home_base in adjuscent_territories_owned:
-#             territories_connected_to_base.add(territory)
-#         else:
-#             if len(adjuscent_territories_owned) != 0:
-#                 connected_to_base(game,adjuscent_territories_owned)
-
-#     return list(territories_connected_to_base)
-
-# def get_home_base_territories(game: Game, home_base: int,home_base_territories:set, checked: list):
-#     my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
-#     adjuscent_territories = game.state.map.get_adjacent_to(home_base)
-
-#     adjuscent_owned_territories = list(set(my_territories) & set(adjuscent_territories))
-
-#     for territory in adjuscent_owned_territories:
-#         if territory not in home_base_territories and territory not in checked:
-#             home_base_territories.add(territory)
-#             checked.append(territory)
-#             get_home_base_territories(game,territory,home_base_territories,checked)
-#         else:
-#             checked.append(territory)
-
-#     print("Home base territories:",home_base_territories)
-
 def find_clusters(game:Game,territories:list[int]):
     pass
-
 
 def get_home_base_territories(game:Game, home_base:int):
     my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
@@ -379,7 +351,6 @@ def handle_place_initial_troop_with_clusters_new(game: Game, bot_state: BotState
 
         return game.move_place_initial_troop(query, non_abandoned_border_territories_to_place[0][0])
 
-
 def handle_place_initial_troop_with_clusters(game: Game, bot_state: BotState, query: QueryPlaceInitialTroop) -> MovePlaceInitialTroop:
     my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
         # We will place troops along the territories on our border.
@@ -428,10 +399,6 @@ def handle_place_initial_troop_with_clusters(game: Game, bot_state: BotState, qu
         max_troops = max(non_abandoned_border_territories,key=lambda x: game.state.territories[x].troops)
         print(f"[handle_place_initial_troop_with_clusters] -- All territories have an equal number to their largest enemy neighbouring force. place troops on {max_troops} because it has max troops of {game.state.territories[max_troops].troops}",flush=True)
         return game.move_place_initial_troop(query, max_troops)
-
-
-
-
 
 #Place troops on territories that have a friendlies, when a territory has no friendly troop around it, abandone it
 def handle_place_initial_troop_new(game: Game, bot_state: BotState, query: QueryPlaceInitialTroop) -> MovePlaceInitialTroop:
@@ -522,7 +489,6 @@ def handle_place_initial_troop_new(game: Game, bot_state: BotState, query: Query
 
     #For territories bordered by just 1 player just place enoung troops to defend
 
-
 def handle_place_initial_troop(game: Game, bot_state: BotState, query: QueryPlaceInitialTroop) -> MovePlaceInitialTroop:
     """After all the territories have been claimed, you can place a single troop on one
     of your territories each turn until each player runs out of troops."""
@@ -554,7 +520,6 @@ def handle_place_initial_troop(game: Game, bot_state: BotState, query: QueryPlac
 
     #return game.move_place_initial_troop(query, max_troops_territory.territory_id)
     return game.move_place_initial_troop(query, border_territories_home_base[0])
-
 
 def handle_redeem_cards(game: Game, bot_state: BotState, query: QueryRedeemCards) -> MoveRedeemCards:
     """After the claiming and placing initial troops phases are over, you can redeem any
@@ -811,7 +776,6 @@ def handle_distribute_troops_new(game: Game, bot_state: BotState, query: QueryDi
     print(f"[handle_distribute_troops_new] -- Final distribution is: {dict(distributions)}")
     return game.move_distribute_troops(query, distributions)
 
-
 def handle_distribute_troops(game: Game, bot_state: BotState, query: QueryDistributeTroops) -> MoveDistributeTroops:
     """After you redeem cards (you may have chosen to not redeem any), you need to distribute
     all the troops you have available across your territories. This can happen at the start of
@@ -862,7 +826,6 @@ def handle_distribute_troops(game: Game, bot_state: BotState, query: QueryDistri
 
 
     return game.move_distribute_troops(query, distributions)
-
 
 #Only attack to a territory where you will have more troops than your neighbouring enemies
 def handle_attack_with_probability_attack_weakest(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
@@ -949,8 +912,6 @@ def handle_attack_with_probability_attack_weakest(game: Game, bot_state: BotStat
 
     print(f"[handle_attack_with_probability_attack_weakest] [CHECK] --> There is no adjuscent territory available for attack at all. Proceeding without attack")
     return game.move_attack_pass(query)
-
-
 
 #Only attack to a territory where you will have more troops than your neighbouring enemies
 def handle_attack_probability_simplifie_new(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
@@ -1134,7 +1095,6 @@ def handle_attack_probability_simplified(game: Game, bot_state: BotState, query:
             
     print(f"[handle_attack_probability] [CHECK] --> There is no adjuscent territory available for attack at all. Proceeding without attack")
     return game.move_attack_pass(query)
-
 
 def handle_attack_probability(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
     start = time.perf_counter()
