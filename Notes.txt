@@ -61,3 +61,10 @@ Started decreasing when i changed how troops are distributed after trading in ca
 
 
 # [handle_distribute_troops_new] -- Final distribution is: {24: 3}
+
+
+
+
+To check 
+
+1. First start with getting adjuscent territories and deciding which one to attack or first getting which territory to attack from and getting which territory to attack
