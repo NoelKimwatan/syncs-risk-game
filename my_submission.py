@@ -874,7 +874,7 @@ def handle_attack_with_probability_attack_weakest(game: Game, bot_state: BotStat
                     print(f"[handle_attack_with_probability_attack_weakest] -- Thinking of attacking {candidate} which has {game.state.territories[candidate].troops} troops. From {attack_from} which has {game.state.territories[attack_from].troops} troops Probability of attack success high ? {to_attack_enemy}",flush=True)
 
                     #Attack first candidate where the attack probability is greater than threshold
-                    if to_attack_enemy:
+                    if to_attack_enemy and len(game.state.recording) < start_attack_mode:
                         #If probability of attack success is high. Check if you have greater than the new territories enemies
                         potential_new_adjuscent = game.state.map.get_adjacent_to(candidate)
                         potential_new_adjuscent_enemies = list(set(potential_new_adjuscent) - set(my_territories))
@@ -896,9 +896,19 @@ def handle_attack_with_probability_attack_weakest(game: Game, bot_state: BotStat
                             return game.move_attack(query,attack_from, candidate, min(3, attack_from_troops))
                         else:
                             print(f"[handle_attack_with_probability_attack_weakest]--[TEST] --> Not attacking  from {attack_from} which has {attack_from_no_of_troops} to {candidate} which has {game.state.territories[candidate].troops} troops. Because I will have new adjuscent enemies {potential_new_adjuscent_enemies_size} wtih a max of {max_new_possible_enemies}")
+
+                    #If in attack mode, do not consider onward enemies
+                    elif to_attack_enemy and len(game.state.recording) >= start_attack_mode:
+                        potential_new_adjuscent = game.state.map.get_adjacent_to(candidate)
+                        potential_new_adjuscent_enemies = list(set(potential_new_adjuscent) - set(my_territories))
+                        potential_new_adjuscent_enemies_size = [(x,game.state.territories[x].troops)for x in potential_new_adjuscent_enemies]
+                        
+                        print(f"[handle_attack_with_probability_attack_weakest]--[TEST]  --> In attack mode, disregarding onward enemies: {potential_new_adjuscent_enemies_size}. Attacking from {attack_from} which has {attack_from_no_of_troops} to {candidate} which has {game.state.territories[candidate].troops} troops")
+
+                        return game.move_attack(query,attack_from, candidate, min(3, attack_from_troops))
                             
                     else:
-                            print(f"[handle_attack_with_probability_attack_weakest] --> Not Attacking from {attack_from} which has {attack_from_no_of_troops} to {candidate} which has {game.state.territories[candidate].troops} troops because probability of success and below threshold")
+                        print(f"[handle_attack_with_probability_attack_weakest] --> Not Attacking from {attack_from} which has {attack_from_no_of_troops} to {candidate} which has {game.state.territories[candidate].troops} troops because probability of success and below threshold")
 
             else:
                 print(f"[handle_attack_with_probability_attack_weakest] --> Passing attacking player {enemy} from {attack_from} which as {game.state.territories[attack_from].troops} troops. Reason player enemies: {adjuscent_enemy_player}",flush=True)
