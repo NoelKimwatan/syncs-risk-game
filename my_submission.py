@@ -45,8 +45,8 @@ def main():
     game = Game()
     bot_state = BotState()
 
-    global attack_probability_threshold 
-    attack_probability_threshold = 0.75
+    #global attack_probability_threshold 
+
 
     #battleprob,risk_probability
     global p_obj
@@ -67,13 +67,6 @@ def main():
         # Get the engine's query (this will block until you receive a query).
         query = game.get_next_query()
         #print("Player: {}".format(game.state.me.player_id),flush=True)
-
-        print("[Test] - While True",flush=True)
-
-        if len(game.state.recording) >= start_attack_mode:
-            attack_probability_threshold = 0.75
-
-
 
 
         # Based on the type of query, respond with the correct move.
@@ -842,7 +835,6 @@ def handle_attack_with_probability_attack_weakest(game: Game, bot_state: BotStat
 
     print(f"[handle_attack_with_probability_attack_weakest] -- Weakest player {weakest_player}")
 
-    print(f"[handle_attack_with_probability_attack_weakest][TEST] -- Attack threshold: {attack_probability_threshold}")
   
     #We will decide on the territory to attack using the probability equation
     for attack_from in my_territory_sorted:
@@ -877,7 +869,7 @@ def handle_attack_with_probability_attack_weakest(game: Game, bot_state: BotStat
                 for candidate in candidate_enemy_attack:
                 #Only atack if you have 3 more than the adjuscent enemy except the one you are attacking
                 #Find maximum amount of adjuscent enemies around except the one attacking
-                    to_attack_enemy = to_attack(attack_from_troops,game.state.territories[candidate].troops)
+                    to_attack_enemy = to_attack(game,attack_from_troops,game.state.territories[candidate].troops)
 
                     print(f"[handle_attack_with_probability_attack_weakest] -- Thinking of attacking {candidate} which has {game.state.territories[candidate].troops} troops. From {attack_from} which has {game.state.territories[attack_from].troops} troops Probability of attack success high ? {to_attack_enemy}",flush=True)
 
@@ -964,7 +956,7 @@ def handle_attack_probability_simplifie_new(game: Game, bot_state: BotState, que
             for candidate in candidate_enemy_attack:
                 #Only atack if you have 3 more than the adjuscent enemy except the one you are attacking
                 #Find maximum amount of adjuscent enemies around except the one attacking
-                to_attack_enemy = to_attack(attack_from_troops,game.state.territories[candidate].troops)
+                to_attack_enemy = to_attack(game,attack_from_troops,game.state.territories[candidate].troops)
 
                 print(f"[handle_attack_probability_simplifie_new] -- Thinking of attacking {candidate} which has {game.state.territories[candidate].troops} troops. From {attack_from} which has {game.state.territories[attack_from].troops} troops Probability of attack success high ? {to_attack_enemy}",flush=True)
 
@@ -1078,7 +1070,7 @@ def handle_attack_probability_simplified(game: Game, bot_state: BotState, query:
                     continue
 
                 print(f"[handle_attack_probability] Before getting to_attack_enemy {(time.perf_counter() - start)*1000} milli seconds")
-                to_attack_enemy = to_attack(attack_from_troops,game.state.territories[candidate].troops)
+                to_attack_enemy = to_attack(game,attack_from_troops,game.state.territories[candidate].troops)
                 print(f"[handle_attack_probability] After getting to_attack_enemy {(time.perf_counter() - start)*1000} milli seconds")
 
                 #Attack first candidate where the attack probability is greater than threshold
@@ -1736,8 +1728,14 @@ def shortest_connected_path(game:Game, source:int, destination:int):
     
 
 #Function to determine if a player should attack or not
-def to_attack(no_attacker,no_defender):
+def to_attack(game:Game,no_attacker,no_defender):
     attack_probability_threshold = 0.7
+
+    if len(game.state.recording) >= start_attack_mode:
+        attack_probability_threshold = 0.5
+    
+    print(f"[to_attack][Test] - Attack threshold: {attack_probability_threshold}",flush=True)
+
     #p_obj
     if no_attacker <= 100 and no_defender <= 100:
         success_probability = p_obj.battleprob(no_attacker,no_defender)
