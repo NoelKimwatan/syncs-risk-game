@@ -68,3 +68,7 @@ Started decreasing when i changed how troops are distributed after trading in ca
 To check 
 
 1. First start with getting adjuscent territories and deciding which one to attack or first getting which territory to attack from and getting which territory to attack
+
+Important: Once you get to attack mode dont care if the territory you are moving too has more troops just attack if you can win
+
+Add troops to the territory closest to the weakes player that has the most troops

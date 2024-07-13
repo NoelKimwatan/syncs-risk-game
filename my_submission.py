@@ -113,7 +113,21 @@ def main():
         
         # Send the move to the engine.
         game.send_move(choose_move(query))
-                
+
+#Find weakest player
+def find_weakest_players(game:Game):
+    def get_no_of_troops(player):
+        no_of_troops = sum([ game.state.territories[t].troops for t in game.state.get_territories_owned_by(player)])
+        return no_of_troops
+    alive_players = [ (x.player_id,x.card_count) for x in game.state.players.values() if x.alive == True and x.player_id != game.state.me.player_id ]  #(player_id, card_count)
+    alive_players_troops = [ (x[0],get_no_of_troops(x[0]),x[1]) for x in alive_players] #(player_id,no_of_troops,no_of_cards)
+
+    #Sort according to number of players then number of cards
+    alive_players_troops = sorted(alive_players_troops,key=lambda x: (x[1],(1/(x[2]+1))))
+
+    #(player_id,no_of_troops,no_of_cards)
+    return alive_players_troops
+           
 
 def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTerritory) -> MoveClaimTerritory:
     """At the start of the game, you can claim a single unclaimed territory every turn 
@@ -669,15 +683,28 @@ def handle_distribute_troops_towards_weakest(game: Game, bot_state: BotState, qu
                     break
     #In later stages distribute to weakest player
     else:
-        for player in weakest_players:
-            bordering_enemy_territories = set(game.state.get_all_adjacent_territories(my_territories)) & set(game.state.get_territories_owned_by(player.player_id))
-            if len(bordering_enemy_territories) > 0:
-                print("my territories", [game.state.map.get_vertex_name(x) for x in my_territories])
-                print("bordering enemies", [game.state.map.get_vertex_name(x) for x in bordering_enemy_territories])
-                print("adjacent to target", [game.state.map.get_vertex_name(x) for x in game.state.map.get_adjacent_to(list(bordering_enemy_territories)[0])])
-                selected_territory = list(set(game.state.map.get_adjacent_to(list(bordering_enemy_territories)[0])) & set(my_territories))[0]
-                distributions[selected_territory] += total_troops
+        weakest_players_ordered = find_weakest_players(game)
+        for player in weakest_players_ordered:
+            weaker_player_territories = [ t for t in game.state.get_territories_owned_by(player[0]) ]
+
+            territories_adjuscent_to_weaker_player = []
+            for t in weaker_player_territories:
+                adjuscent = game.state.map.get_adjacent_to(t)
+                my_territories_adjuscent = list(set(my_territories) & set(adjuscent))
+                territories_adjuscent_to_weaker_player = territories_adjuscent_to_weaker_player + my_territories_adjuscent
+
+            territories_adjuscent_to_weaker_player = list(set(territories_adjuscent_to_weaker_player))
+            territories_adjuscent_to_weaker_player = sorted(territories_adjuscent_to_weaker_player,key=lambda x: game.state.territories[x].troops,reverse=True)
+
+
+            if len(territories_adjuscent_to_weaker_player) > 0:
+                print(f"[handle_distribute_troops_towards_weakest][NEW] --> Adding {total_troops} troops to {territories_adjuscent_to_weaker_player[0]} beacause it is adjuscent to the weaker enemy {player}. Weaker enemies: {weakest_players_ordered} and it has the most troops ",flush=True)
+                distributions[territories_adjuscent_to_weaker_player[0]] += total_troops
                 break
+
+
+
+            
 
     print(f"[handle_distribute_troops_towards_weakest] -- Final distribution is: {dict(distributions)}",flush=True)
     return game.move_distribute_troops(query, distributions)
@@ -836,19 +863,6 @@ def handle_distribute_troops(game: Game, bot_state: BotState, query: QueryDistri
 
     return game.move_distribute_troops(query, distributions)
 
-#Find weakest player
-def find_weakest_players(game:Game):
-    def get_no_of_troops(player):
-        no_of_troops = sum([ game.state.territories[t].troops for t in game.state.get_territories_owned_by(player)])
-        return no_of_troops
-    alive_players = [ (x.player_id,x.card_count) for x in game.state.players.values() if x.alive == True and x.player_id != game.state.me.player_id ]  #(player_id, card_count)
-    alive_players_troops = [ (x[0],get_no_of_troops(x[0]),x[1]) for x in alive_players] #(player_id,no_of_troops,no_of_cards)
-
-    #Sort according to number of players then number of cards
-    alive_players_troops = sorted(alive_players_troops,key=lambda x: (x[1],(1/(x[2]+1))))
-
-    #(player_id,no_of_troops,no_of_cards)
-    return alive_players_troops
 
 #Only attack to a territory where you will have more troops than your neighbouring enemies
 def handle_attack_with_probability_attack_weakest(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
@@ -1579,11 +1593,6 @@ def handle_fortify_new(game: Game, bot_state: BotState, query: QueryFortify) -> 
     
 
     
-
-
-
-
-
 def handle_fortify(game: Game, bot_state: BotState, query: QueryFortify) -> Union[MoveFortify, MoveFortifyPass]:
     """At the end of your turn, after you have finished attacking, you may move a number of troops between
     any two of your territories (they must be adjacent)."""
