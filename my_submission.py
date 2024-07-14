@@ -86,7 +86,8 @@ def main():
                 case QueryDistributeTroops() as q:
                     #return handle_distribute_troops(game, bot_state, q)
                     #return handle_distribute_troops_new(game, bot_state, q)
-                    return handle_distribute_troops_towards_weakest(game, bot_state, q)
+                    #return handle_distribute_troops_towards_weakest(game, bot_state, q)
+                    return handle_distribute_troops_towards_weakest_new(game, bot_state, q)
                     
 
                 case QueryAttack() as q:

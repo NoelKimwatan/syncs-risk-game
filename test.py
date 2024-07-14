@@ -199,6 +199,6 @@ start = time.perf_counter()
 
 
 print(f"Before: {(time.perf_counter() - start)*1000}")
-print(test.battleprob(2,3))
+print(test.battleprob(2,1))
 print(f"Before: {(time.perf_counter() - start)*1000}")
 
