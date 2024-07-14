@@ -219,12 +219,20 @@ def handle_claim_territory_new(game: Game, bot_state: BotState, query: QueryClai
         #Give each preffered territory a weight
         def territorySelectionPreference(territory):
             territoryWeight = {
-                30: 10, #South America is the most preffered
-                24: 9,  #Followed by Ausralia
+                25:15,  #Asia
+                40: 10, #Australia
+                0: 9,   #Alaska
                 40: 8,  #Followed by South Africa
                 32: 8,   #Finally Eastern Australia
                 25: 7   #Finally Eastern Australia
             }
+            # territoryWeight = {
+            #     30: 10, #South America is the most preffered
+            #     24: 9,  #Followed by Ausralia
+            #     40: 8,  #Followed by South Africa
+            #     32: 8,   #Finally Eastern Australia
+            #     25: 7   #Finally Eastern Australia
+            # }
             # territoryWeight = {
             #     28: 10, #South America is the most preffered
             #     41: 9,  #Followed by Western Ausralia
@@ -250,7 +258,8 @@ def handle_claim_territory_new(game: Game, bot_state: BotState, query: QueryClai
         #preferredStartingPoint = [8,28,37,41,38]
         #preferredStartingPoint = [40,13,30,21]
         #preferredStartingPoint = [28,41,37,38,8]
-        preferredStartingPoint = [31,40,8,32,25]
+        #preferredStartingPoint = [31,40,8,32,25]
+        preferredStartingPoint = [25,31,40,8,32,25]
         prefferedAvailable = list(set(preferredStartingPoint) & set(unclaimed_territories))
         
         if len(prefferedAvailable) != 0:
