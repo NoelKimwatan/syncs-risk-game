@@ -219,7 +219,7 @@ def handle_claim_territory_new(game: Game, bot_state: BotState, query: QueryClai
         #Give each preffered territory a weight
         def territorySelectionPreference(territory):
             territoryWeight = {
-                25:15,  #Asia
+                17:15,  #Asia
                 40: 10, #Australia
                 0: 9,   #Alaska
                 40: 8,  #Followed by South Africa
