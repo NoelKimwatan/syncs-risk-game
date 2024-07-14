@@ -73,8 +73,7 @@ def main():
         def choose_move(query: QueryType) -> MoveType:
             match query:
                 case QueryClaimTerritory() as q:
-                    #return handle_claim_territory(game, bot_state, q)
-                    return handle_claim_territory_new(game, bot_state, q)
+                    return handle_claim_territory(game, bot_state, q)
 
                 case QueryPlaceInitialTroop() as q:
                     #return handle_place_initial_troop(game, bot_state, q)
@@ -87,7 +86,8 @@ def main():
                 case QueryDistributeTroops() as q:
                     #return handle_distribute_troops(game, bot_state, q)
                     #return handle_distribute_troops_new(game, bot_state, q)
-                    return handle_distribute_troops_towards_weakest(game, bot_state, q)
+                    #return handle_distribute_troops_towards_weakest(game, bot_state, q)
+                    return handle_distribute_troops_towards_weakest_new(game, bot_state, q)
                     
 
                 case QueryAttack() as q:
@@ -96,7 +96,8 @@ def main():
                     #return handle_attack_probability(game, bot_state, q)
                     #return handle_attack_probability_simplified(game, bot_state, q)
                     #return handle_attack_probability_simplifie_new(game, bot_state, q)
-                    return handle_attack_with_probability_attack_weakest(game, bot_state, q)
+                    #return handle_attack_with_probability_attack_weakest(game, bot_state, q)
+                    return handle_attack_with_tacktic_change(game, bot_state, q)
 
                 case QueryTroopsAfterAttack() as q:
                     #return handle_troops_after_attack(game, bot_state, q)
@@ -128,10 +129,11 @@ def find_weakest_players(game:Game):
 
     #(player_id,no_of_troops,no_of_cards)
     return alive_players_troops
-
+           
 def handle_claim_territory_new(game: Game, bot_state: BotState, query: QueryClaimTerritory) -> MoveClaimTerritory:
     """At the start of the game, you can claim a single unclaimed territory every turn 
     until all the territories have been claimed by players."""
+    #America(AM): 1, South America(SAM): 2, Africa(AF): 3, Europ(EU)e: 4, Asia(AS): 5, Australia(AU): 6
     countries = {
         0:"AM",1:"AM",2:"AM",3:"AM",4:"AM",5:"AM",6:"AM",7:"AM",8:"AM",
         30:"SAM",31:"SAM",28:"SAM",29:"SAM",
@@ -142,31 +144,57 @@ def handle_claim_territory_new(game: Game, bot_state: BotState, query: QueryClai
     }
 
     countinents = {
-        "SAM": [30,31,28,29],   #South America
-        "AM": [8,0,1,2,3,4,5,6,7],  #America
-        "AF": [32,33,34,35,36,37],  #Africa
-        "EU": [11,9,10,12,13,14,15],    #Europe
-        "AS": [25,16,17,18,19,20,21,22,23,24,26,27],    #Aisa
-        "AU": [40,38,39,41] #Australia
+        "SAM": [30,31,28,29],
+        "AM": [0,1,2,3,4,5,6,7,8],
+        "AF": [32,33,34,35,36,37],
+        "EU": [9,10,11,12,13,14,15],
+        "AS": [16,17,18,19,20,21,22,23,24,25,26,27],
+        "AU": [38,39,40,41]
     }
 
-    continent_preference = ["AU","SAM","AF","AM","EU"]
     unclaimed_territories = game.state.get_territories_owned_by(None)
     my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
-    #print("My territories: ",my_territories,flush=True)
-
-
-
     # We will try to always pick new territories that are next to ones that we own,
     # or a random one if that isn't possible.
     adjacent_territories = game.state.get_all_adjacent_territories(my_territories)
-    #print("Adjacent territories: ",adjacent_territories,flush=True)
 
     # We can only pick from territories that are unclaimed and adjacent to us.
     available = list(set(unclaimed_territories) & set(adjacent_territories))
+
+    if len(my_territories) == 0:
+        print("[handle_claim_territory_new] -- This is the first selection or pick",flush=True)
+        def territorySelectionPreferenceFunc(territory):
+            first_selection_weight = {
+                30: 10, #South America is the most preffered
+                24: 9,  #Followed by Ausralia
+                40: 8,  #Followed by South Africa
+                32: 8,   #Finally Eastern Australia
+                25: 7   #Finally Eastern Australia
+            }
+            return first_selection_weight[territory]
+        
+        preferredStartingPoint = [31,40,8,32,25]
+
+        prefferedAvailable = list(set(preferredStartingPoint) & set(unclaimed_territories))
+
+        if len(prefferedAvailable) > 0:
+            prefferedAvailable = sorted(prefferedAvailable,key=lambda x: territorySelectionPreferenceFunc(x),reverse=True)
+            selected_territory = prefferedAvailable[0]
+            return game.move_claim_territory(query, selected_territory)
+        else:
+            #Will never happen is selection list is atleast 4 territories, but just a precaution
+            pass
+
+
+    else:
+        print("[handle_claim_territory_new] -- The first territory has already been selected",flush=True)
+
+
+
+    #print("Adjacent territories: ",adjacent_territories,flush=True)
+
+
     #print("Available territories: ",available)
-
-
     if len(available) != 0:
 
         # We will pick the one with the most connections to our territories
@@ -188,32 +216,30 @@ def handle_claim_territory_new(game: Game, bot_state: BotState, query: QueryClai
         #Change to select territory with the least amount of territories bordering it
         #Change to start by selecting a position in either Africa, South Ameria or Australia
 
-        #When choosing first territory, pick contient that has not been claimed
-        if len(my_territories) == 0:
-            print("[handle_claim_territory_new] -- I have 0 territories",flush=True)
-
-            for continent in continent_preference:
-                all_countries = countinents[continent]
-                available_countries = list(set(all_countries) & set(unclaimed_territories))
-
-                if len(all_countries) == len(available_countries):
-                    print(f"[handle_claim_territory_new] -- All countries in {continent} are unclaimed",flush=True)
-
-                    selected_territory = all_countries[0]
-                    return game.move_claim_territory(query, selected_territory)
-
-
-        
-
         #Give each preffered territory a weight
         def territorySelectionPreference(territory):
             territoryWeight = {
-                28: 10, #South America is the most preffered
-                41: 9,  #Followed by Western Ausralia
-                37: 8,  #Followed by South Africa
-                38: 8,   #Finally Eastern Australia
-                8: 7   #Finally Eastern Australia
+                17:15,  #Asia
+                40: 10, #Australia
+                0: 9,   #Alaska
+                40: 8,  #Followed by South Africa
+                32: 8,   #Finally Eastern Australia
+                25: 7   #Finally Eastern Australia
             }
+            # territoryWeight = {
+            #     30: 10, #South America is the most preffered
+            #     24: 9,  #Followed by Ausralia
+            #     40: 8,  #Followed by South Africa
+            #     32: 8,   #Finally Eastern Australia
+            #     25: 7   #Finally Eastern Australia
+            # }
+            # territoryWeight = {
+            #     28: 10, #South America is the most preffered
+            #     41: 9,  #Followed by Western Ausralia
+            #     37: 8,  #Followed by South Africa
+            #     38: 8,   #Finally Eastern Australia
+            #     8: 7   #Finally Eastern Australia
+            # }
             # territoryWeight = {
             #     41:10,  #Most preferred is West Australia
             #     28:9,   #The South America
@@ -231,7 +257,9 @@ def handle_claim_territory_new(game: Game, bot_state: BotState, query: QueryClai
         #preferredStartingPoint = [41,28,37,8]
         #preferredStartingPoint = [8,28,37,41,38]
         #preferredStartingPoint = [40,13,30,21]
-        preferredStartingPoint = [28,41,37,38,8]
+        #preferredStartingPoint = [28,41,37,38,8]
+        #preferredStartingPoint = [31,40,8,32,25]
+        preferredStartingPoint = [17,31,40,8,32]
         prefferedAvailable = list(set(preferredStartingPoint) & set(unclaimed_territories))
         
         if len(prefferedAvailable) != 0:
@@ -251,7 +279,6 @@ def handle_claim_territory_new(game: Game, bot_state: BotState, query: QueryClai
         #print("Selected territory: ",selected_territory,flush=True)
         
     return game.move_claim_territory(query, selected_territory)
-
 
 def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTerritory) -> MoveClaimTerritory:
     """At the start of the game, you can claim a single unclaimed territory every turn 
@@ -293,12 +320,20 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
         #Give each preffered territory a weight
         def territorySelectionPreference(territory):
             territoryWeight = {
-                28: 10, #South America is the most preffered
-                41: 9,  #Followed by Western Ausralia
-                37: 8,  #Followed by South Africa
-                38: 8,   #Finally Eastern Australia
-                8: 7   #Finally Eastern Australia
+                17:15,  #Asia
+                29: 10, #South America is the most preffered
+                40: 9,  #Followed by Ausralia
+                36: 8,  #Followed by South Africa
+                8: 8,   #Finally Eastern Australia
+                9: 7   #Finally Eastern Australia
             }
+            # territoryWeight = {
+            #     28: 10, #South America is the most preffered
+            #     41: 9,  #Followed by Western Ausralia
+            #     37: 8,  #Followed by South Africa
+            #     38: 8,   #Finally Eastern Australia
+            #     8: 7   #Finally Eastern Australia
+            # }
             # territoryWeight = {
             #     41:10,  #Most preferred is West Australia
             #     28:9,   #The South America
@@ -316,7 +351,9 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
         #preferredStartingPoint = [41,28,37,8]
         #preferredStartingPoint = [8,28,37,41,38]
         #preferredStartingPoint = [40,13,30,21]
-        preferredStartingPoint = [28,41,37,38,8]
+        #preferredStartingPoint = [28,41,37,38,8]
+        #preferredStartingPoint = [29,40,36,8,9]
+        preferredStartingPoint = [17,29,40,36,8,9]
         prefferedAvailable = list(set(preferredStartingPoint) & set(unclaimed_territories))
         
         if len(prefferedAvailable) != 0:
@@ -695,6 +732,127 @@ def handle_redeem_cards(game: Game, bot_state: BotState, query: QueryRedeemCards
     return game.move_redeem_cards(query, [(x[0].card_id, x[1].card_id, x[2].card_id) for x in card_sets])
 
 #Always distribute troops to match the max of enemy neighbour and then distribute the reminder towards the weakest player
+def handle_distribute_troops_towards_weakest_new(game: Game, bot_state: BotState, query: QueryDistributeTroops) -> MoveDistributeTroops:
+    """After you redeem cards (you may have chosen to not redeem any), you need to distribute
+    all the troops you have available across your territories. This can happen at the start of
+    your turn or after killing another player.
+    """
+    # We will distribute troops across our border territories.
+    total_troops = game.state.me.troops_remaining
+    distributions = defaultdict(lambda: 0)
+    border_territories = game.state.get_all_border_territories(
+        game.state.get_territories_owned_by(game.state.me.player_id)
+    )
+
+    #Find weakest players
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    weakest_players = sorted(game.state.players.values(), key=lambda x: sum(
+            [game.state.territories[y].troops for y in game.state.get_territories_owned_by(x.player_id)]
+    ))
+
+    # We need to remember we have to place our matching territory bonus
+    # if we have one.
+    if len(game.state.me.must_place_territory_bonus) != 0:
+        assert total_troops >= 2
+        distributions[game.state.me.must_place_territory_bonus[0]] += 2
+        total_troops -= 2
+
+
+    #First distribute troops to match the highest neighbour in earlier stages of game
+    if len(game.state.recording) < start_attack_mode:
+        territory_clusters = get_territory_clusters(game)
+        no_of_clusters = len(set([x for x in territory_clusters.values()]))
+        cluster_list = [[] for x in range(no_of_clusters)]
+
+        for key,value in territory_clusters.items():
+            cluster_list[value].append(key)
+
+        cluster_list_ordered = sorted(cluster_list,key=lambda x: len(x),reverse=True)
+        non_abandoned_border_territories = game.state.get_all_border_territories(cluster_list_ordered[0])
+
+        print(f"[handle_distribute_troops_towards_weakest] --> Our cluster: {cluster_list_ordered}",flush=True)
+        print(f"[handle_distribute_troops_towards_weakest] --> Non abandoned border territories: {non_abandoned_border_territories}",flush=True)
+
+        border_territories_enemy_difference = []
+        for territory in non_abandoned_border_territories:
+            print(f"[handle_distribute_troops_towards_weakest] --> Territory: {territory}",flush=True)
+            adjuscent_territory = game.state.map.get_adjacent_to(territory) #my_territories
+            adjuscent_enemy = list(set(adjuscent_territory) - set(my_territories))
+            max_enemy_no = max([game.state.territories[x].troops for x in adjuscent_enemy])
+            difference = max_enemy_no - game.state.territories[territory].troops
+
+            if difference >= 1:
+                border_territories_enemy_difference.append((territory,difference))
+
+        #Order according to difference
+        #sorted_list = sorted(list, key=lambda x: (x[0], -x[1])) - Reference sorting using two fields
+        border_territories_enemy_difference = sorted(border_territories_enemy_difference,key=lambda x: x[1],reverse=True)
+
+        print(f"[handle_distribute_troops_towards_weakest] --> We have {total_troops} troops and the difference in our border territories is {border_territories_enemy_difference}",flush=True)
+
+        if len(border_territories_enemy_difference) > 0:
+
+            for territory in border_territories_enemy_difference:
+                if total_troops == 0:
+                    break
+                
+                allocation = territory[1] if total_troops >= territory[1] else total_troops
+                distributions[territory[0]] += allocation
+                total_troops -= allocation
+    
+        if total_troops >= 1:
+            # Always distribute troops towards weakest
+            weakest_players_ordered = find_weakest_players(game) #(player_id,no_of_troops,no_of_cards)
+            for player in weakest_players_ordered:
+                weaker_player_territories = [ t for t in game.state.get_territories_owned_by(player[0]) ]
+
+                territories_adjuscent_to_weaker_player = []
+                for t in weaker_player_territories:
+                    adjuscent = game.state.map.get_adjacent_to(t)
+                    my_territories_adjuscent = list(set(my_territories) & set(adjuscent))
+                    territories_adjuscent_to_weaker_player = territories_adjuscent_to_weaker_player + my_territories_adjuscent
+
+                territories_adjuscent_to_weaker_player = list(set(territories_adjuscent_to_weaker_player))
+                territories_adjuscent_to_weaker_player = sorted(territories_adjuscent_to_weaker_player,key=lambda x: game.state.territories[x].troops,reverse=True)
+
+                #Distribute all reminder troops to territory next to weakes player with the most troops
+                if len(territories_adjuscent_to_weaker_player) > 0:
+                    print(f"[handle_distribute_troops_towards_weakest][NEW] --> Adding {total_troops} troops to {territories_adjuscent_to_weaker_player[0]} beacause it is adjuscent to the weaker enemy {player}. Weaker enemies: {weakest_players_ordered} and it has the most troops ",flush=True)
+                    distributions[territories_adjuscent_to_weaker_player[0]] += total_troops
+                    total_troops = 0
+                    break
+
+    #In later stages distribute to weakest player
+    else:
+        weakest_players_ordered = find_weakest_players(game)
+        for player in weakest_players_ordered:
+            weaker_player_territories = [ t for t in game.state.get_territories_owned_by(player[0]) ]
+
+            territories_adjuscent_to_weaker_player = []
+            for t in weaker_player_territories:
+                adjuscent = game.state.map.get_adjacent_to(t)
+                my_territories_adjuscent = list(set(my_territories) & set(adjuscent))
+                territories_adjuscent_to_weaker_player = territories_adjuscent_to_weaker_player + my_territories_adjuscent
+
+            territories_adjuscent_to_weaker_player = list(set(territories_adjuscent_to_weaker_player))
+            territories_adjuscent_to_weaker_player = sorted(territories_adjuscent_to_weaker_player,key=lambda x: game.state.territories[x].troops,reverse=True)
+
+
+            if len(territories_adjuscent_to_weaker_player) > 0:
+                print(f"[handle_distribute_troops_towards_weakest][NEW] --> Adding {total_troops} troops to {territories_adjuscent_to_weaker_player[0]} beacause it is adjuscent to the weaker enemy {player}. Weaker enemies: {weakest_players_ordered} and it has the most troops ",flush=True)
+                distributions[territories_adjuscent_to_weaker_player[0]] += total_troops
+                total_troops = 0
+                break
+
+
+
+            
+
+    print(f"[handle_distribute_troops_towards_weakest] -- Final distribution is: {dict(distributions)}",flush=True)
+    return game.move_distribute_troops(query, distributions)
+
+
+#Always distribute troops to match the max of enemy neighbour and then distribute the reminder towards the weakest player
 def handle_distribute_troops_towards_weakest(game: Game, bot_state: BotState, query: QueryDistributeTroops) -> MoveDistributeTroops:
     """After you redeem cards (you may have chosen to not redeem any), you need to distribute
     all the troops you have available across your territories. This can happen at the start of
@@ -954,6 +1112,179 @@ def handle_distribute_troops(game: Game, bot_state: BotState, query: QueryDistri
 
 
     return game.move_distribute_troops(query, distributions)
+
+def handle_attack_with_tacktic_change(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
+    if len(game.state.recording) < start_attack_mode:
+        print("[handle_attack_with_tacktic_change] -- We are NOT in attack mode",flush=True)
+        return handle_attack_normal_mode(game, bot_state, query)
+
+    else:
+        print("[handle_attack_with_tacktic_change] -- We are in attack mode",flush=True)
+        return handle_attack_attack_mode(game, bot_state, query)
+
+def handle_attack_normal_mode(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
+    #In normal mode we should either attack territory most surrounded by you, or attack weakest enemy
+    start = time.perf_counter()
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    bordering_territories = game.state.get_all_adjacent_territories(my_territories)
+    #Attack from territory with the most troops
+    my_territory_sorted = sorted(my_territories, key= lambda x: game.state.territories[x].troops,reverse=True )
+    #(player_id,no_of_troops,co_of_cards)
+    weakest_player = find_weakest_players(game)
+
+    print(f"[handle_attack_normal_mode] -- Weakest player {weakest_player}")
+
+    #We will decide on the territory to attack using the probability equation, from territory with most troops
+    for attack_from in my_territory_sorted:
+        print(f"[handle_attack_normal_mode] Attack from for loop {(time.perf_counter() - start)*1000} milli seconds",flush=True)
+        #Attack territory with mostly surrounded by my territories
+        attack_from_adjuscent = game.state.map.get_adjacent_to(attack_from)
+
+        for enemy in weakest_player:
+            
+            enemy_player = enemy[0]
+            adjuscent_enemy_player = list(set(attack_from_adjuscent) & set(game.state.get_territories_owned_by(enemy_player)))
+
+            print(f"[handle_attack_normal_mode] Thinking of attacking player: {enemy} from territory: {attack_from}. Adjuscent enemies: {adjuscent_enemy_player}",flush=True)
+
+            if len(adjuscent_enemy_player) > 0:
+                #Getting troops from attack from location
+                attack_from_troops = game.state.territories[attack_from].troops - 1
+                attack_from_no_of_troops = game.state.territories[attack_from].troops
+
+                #Get most surrounded enemy territory
+                def territory_most_surrounded(territory):
+                    adjuscent = game.state.map.get_adjacent_to(territory)
+                    adjuscent_friendly = list(set(adjuscent) & set(my_territories))
+
+                    return  len(adjuscent_friendly) / len(adjuscent)
+                
+                candidate_enemy_attack = sorted(adjuscent_enemy_player,key=territory_most_surrounded,reverse=True)
+                #(territory, no of troops, percentage_surrounded)
+                candidate_enemy_attack_and_troops = [(x,game.state.territories[x].troops,territory_most_surrounded(x)) for x in candidate_enemy_attack]
+
+                print(f"[handle_attack_normal_mode] -- Candidates to attack and troops: {candidate_enemy_attack_and_troops} -> (territoryid,troops in territory, percentage surrounded)",flush=True)
+
+                for candidate in candidate_enemy_attack:
+                #Only atack if you have 3 more than the adjuscent enemy except the one you are attacking
+                #Find maximum amount of adjuscent enemies around except the one attacking
+                    to_attack_enemy = to_attack(game,attack_from_troops,game.state.territories[candidate].troops)
+
+                    print(f"[handle_attack_normal_mode] -- Thinking of attacking {candidate} which has {game.state.territories[candidate].troops} troops. From {attack_from} which has {game.state.territories[attack_from].troops} troops Probability of attack success high ? {to_attack_enemy}",flush=True)
+
+                    #Attack first candidate where the attack probability is greater than threshold
+
+                    if to_attack_enemy:
+                        #If probability of attack success is high. Check if you have greater than the new territories enemies
+                        potential_new_adjuscent = game.state.map.get_adjacent_to(candidate)
+                        potential_new_adjuscent_enemies = list(set(potential_new_adjuscent) - set(my_territories))
+                        potential_new_adjuscent_enemies_size = [(x,game.state.territories[x].troops)for x in potential_new_adjuscent_enemies]
+
+                        if len(potential_new_adjuscent_enemies) > 1:
+                            max_new_possible_enemies = max(potential_new_adjuscent_enemies_size,key=lambda x: x[1])
+                        else:
+                            #No enemy in the new territory
+                            max_new_possible_enemies = (0,0)
+
+                        print(f"[handle_attack_normal_mode]--[TEST]  -- Thinking of attacking {candidate} which has {game.state.territories[candidate].troops} troops. From {attack_from} which has {game.state.territories[attack_from].troops} troops Probability of attack success high ? {to_attack_enemy}. New possible enemies are: {potential_new_adjuscent_enemies_size}. Max: {max_new_possible_enemies}",flush=True)
+
+                        #Will change this later to factor in the troops that will move
+                        if (attack_from_troops - game.state.territories[candidate].troops) >= max_new_possible_enemies[1]:
+                            print(f"[handle_attack_normal_mode]--[TEST]  --> Attacking from {attack_from} which has {attack_from_no_of_troops} to {candidate} which has {game.state.territories[candidate].troops} troops")
+                            print(f"[handle_attack_normal_mode]--[TEST]  Before return {(time.perf_counter() - start)*1000} milli seconds")
+                            #Attack with a minimum of 3 soldiers of the troops available
+                            return game.move_attack(query,attack_from, candidate, min(3, attack_from_troops))
+                        
+                        else:
+                            print(f"[handle_attack_normal_mode]--[TEST] --> Not attacking  from {attack_from} which has {attack_from_no_of_troops} to {candidate} which has {game.state.territories[candidate].troops} troops. Because I will have new adjuscent enemies {potential_new_adjuscent_enemies_size} wtih a max of {max_new_possible_enemies}")
+                    else:
+                        print(f"[handle_attack_normal_mode] --> Not Attacking from {attack_from} which has {attack_from_no_of_troops} to {candidate} which has {game.state.territories[candidate].troops} troops because probability of success and below threshold")
+            else:
+                print(f"[handle_attack_normal_mode] Not attacking player: {enemy} from territory: {attack_from}. Because we dont have any territories adjuscent to it",flush=True)
+    
+    print(f"[handle_attack_normal_mode] [CHECK] --> There is no adjuscent territory available for attack at all. Proceeding without attack")
+    return game.move_attack_pass(query)
+
+def handle_attack_attack_mode(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
+    start = time.perf_counter()
+     # We will attack someone.
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    bordering_territories = game.state.get_all_adjacent_territories(my_territories)
+    
+    #Attack from territory with the most troops
+    my_territory_sorted = sorted(my_territories, key= lambda x: game.state.territories[x].troops,reverse=True )
+
+    #(player_id,no_of_troops,co_of_cards)
+    weakest_player = find_weakest_players(game)
+
+    print(f"[handle_attack_attack_mode] -- Weakest player {weakest_player}")
+
+  
+    #We will decide on the territory to attack using the probability equation
+    for attack_from in my_territory_sorted:
+        print(f"[handle_attack_attack_mode] Attack from for loop {(time.perf_counter() - start)*1000} milli seconds")
+        #Attack territory with mostly surrounded by my territories
+        attack_from_adjuscent = game.state.map.get_adjacent_to(attack_from)
+
+        for enemy in weakest_player:
+            enemy_player = enemy[0]
+            enemy_player_territories = game.state.get_territories_owned_by(enemy_player)
+            adjuscent_enemy_player = list(set(attack_from_adjuscent) & set(enemy_player_territories))
+
+            print(f"[handle_attack_attack_mode][getting_attack_path] -- Enemy player territories: {enemy_player_territories}. Adjuscent enemy player territories: {adjuscent_enemy_player}",flush=True)
+            
+
+            if len(adjuscent_enemy_player) > 0:
+                print(f"[handle_attack_attack_mode] --> Thinking of attacking player {enemy} from {attack_from} which has {game.state.territories[attack_from].troops} troops and player enemies {adjuscent_enemy_player}",flush=True)
+
+                #Getting troops from attack from location
+                attack_from_troops = game.state.territories[attack_from].troops - 1
+                attack_from_no_of_troops = game.state.territories[attack_from].troops
+
+                adjuscent_enemy_player_surrounded = []
+                for territory in adjuscent_enemy_player:
+                    adjuscent = game.state.map.get_adjacent_to(territory)
+                    adjuscent_owned_by_enemy = list(set(enemy_player_territories) & set(adjuscent))
+                    print(f"[handle_attack_attack_mode][getting_attack_path] -- Adjuscent territories: {adjuscent}. This territory: {territory}",flush=True)
+
+                    percentage = len(adjuscent_owned_by_enemy)/len(adjuscent)
+
+                    adjuscent_enemy_player_surrounded.append((territory,percentage))
+
+                
+
+                print(f"[handle_attack_attack_mode][getting_attack_path] -- Adjuscent enemy player surrounded: {adjuscent_enemy_player_surrounded}.",flush=True)
+                adjuscent_enemy_player_surrounded = sorted(adjuscent_enemy_player_surrounded,key=lambda x: x[1])
+                print(f"[handle_attack_attack_mode][getting_attack_path] -- Adjuscent enemy player surrounded sorted: {adjuscent_enemy_player_surrounded}.",flush=True)
+
+
+
+                for c in adjuscent_enemy_player_surrounded:
+                #Only atack if you have 3 more than the adjuscent enemy except the one you are attacking
+                #Find maximum amount of adjuscent enemies around except the one attacking
+                    candidate = c[0]
+                    to_attack_enemy = to_attack(game,attack_from_troops,game.state.territories[candidate].troops)
+
+                    print(f"[handle_attack_attack_mode] -- Thinking of attacking {candidate} which has {game.state.territories[candidate].troops} troops. From {attack_from} which has {game.state.territories[attack_from].troops} troops Probability of attack success high ? {to_attack_enemy}",flush=True)
+
+                    if to_attack_enemy:
+                        potential_new_adjuscent = game.state.map.get_adjacent_to(candidate)
+                        potential_new_adjuscent_enemies = list(set(potential_new_adjuscent) - set(my_territories))
+                        potential_new_adjuscent_enemies_size = [(x,game.state.territories[x].troops)for x in potential_new_adjuscent_enemies]
+                        
+                        print(f"[handle_attack_attack_mode]--[TEST]  --> In attack mode, disregarding onward enemies: {potential_new_adjuscent_enemies_size}. Attacking from {attack_from} which has {attack_from_no_of_troops} to {candidate} which has {game.state.territories[candidate].troops} troops")
+
+                        return game.move_attack(query,attack_from, candidate, min(3, attack_from_troops))
+                            
+                    else:
+                        print(f"[handle_attack_attack_mode] --> Not Attacking from {attack_from} which has {attack_from_no_of_troops} to {candidate} which has {game.state.territories[candidate].troops} troops because probability of success and below threshold")
+
+            else:
+                print(f"[handle_attack_attack_mode] --> Passing attacking player {enemy} from {attack_from} which as {game.state.territories[attack_from].troops} troops. Reason player enemies: {adjuscent_enemy_player}",flush=True)
+                pass
+
+    print(f"[handle_attack_attack_mode] [CHECK] --> There is no adjuscent territory available for attack at all. Proceeding without attack")
+    return game.move_attack_pass(query)
 
 #Only attack to a territory where you will have more troops than your neighbouring enemies
 def handle_attack_with_probability_attack_weakest(game: Game, bot_state: BotState, query: QueryAttack) -> Union[MoveAttack, MoveAttackPass]:
@@ -1877,7 +2208,7 @@ def to_attack(game:Game,no_attacker,no_defender):
     attack_probability_threshold = 0.7
 
     if len(game.state.recording) >= start_attack_mode:
-        attack_probability_threshold = 0.5
+        attack_probability_threshold = 0.4
     
     print(f"[to_attack][Test] - Attack threshold: {attack_probability_threshold}",flush=True)
 

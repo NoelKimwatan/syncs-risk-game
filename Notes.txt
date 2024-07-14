@@ -77,3 +77,10 @@ After war zone decrease attack threshold
 
 
 ###Before attack mode, should we attack weakes player or player we have most surrounded
+
+
+
+Final Suggestions:
+1. Change the attack formula
+2. Creat a formula for selecting _continents
+3. Redeem cards if we are the weakes player
