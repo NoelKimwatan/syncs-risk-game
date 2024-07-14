@@ -320,6 +320,7 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
         #Give each preffered territory a weight
         def territorySelectionPreference(territory):
             territoryWeight = {
+                25:15,  #Asia
                 29: 10, #South America is the most preffered
                 40: 9,  #Followed by Ausralia
                 36: 8,  #Followed by South Africa
@@ -351,7 +352,8 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
         #preferredStartingPoint = [8,28,37,41,38]
         #preferredStartingPoint = [40,13,30,21]
         #preferredStartingPoint = [28,41,37,38,8]
-        preferredStartingPoint = [29,40,36,8,9]
+        #preferredStartingPoint = [29,40,36,8,9]
+        preferredStartingPoint = [25,29,40,36,8,9]
         prefferedAvailable = list(set(preferredStartingPoint) & set(unclaimed_territories))
         
         if len(prefferedAvailable) != 0:
@@ -2206,7 +2208,7 @@ def to_attack(game:Game,no_attacker,no_defender):
     attack_probability_threshold = 0.7
 
     if len(game.state.recording) >= start_attack_mode:
-        attack_probability_threshold = 0.5
+        attack_probability_threshold = 0.4
     
     print(f"[to_attack][Test] - Attack threshold: {attack_probability_threshold}",flush=True)
 
