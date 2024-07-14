@@ -168,19 +168,12 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
         #Give each preffered territory a weight
         def territorySelectionPreference(territory):
             territoryWeight = {
-                31: 10, #South America is the most preffered
-                40: 9,  #Followed by Ausralia
-                8: 8,  #Followed by South Africa
-                32: 8,   #Finally Eastern Australia
-                25: 7   #Finally Eastern Australia
+                28: 10, #South America is the most preffered
+                41: 9,  #Followed by Western Ausralia
+                37: 8,  #Followed by South Africa
+                38: 8,   #Finally Eastern Australia
+                8: 7   #Finally Eastern Australia
             }
-            # territoryWeight = {
-            #     28: 10, #South America is the most preffered
-            #     41: 9,  #Followed by Western Ausralia
-            #     37: 8,  #Followed by South Africa
-            #     38: 8,   #Finally Eastern Australia
-            #     8: 7   #Finally Eastern Australia
-            # }
             # territoryWeight = {
             #     41:10,  #Most preferred is West Australia
             #     28:9,   #The South America
@@ -198,8 +191,7 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
         #preferredStartingPoint = [41,28,37,8]
         #preferredStartingPoint = [8,28,37,41,38]
         #preferredStartingPoint = [40,13,30,21]
-        #preferredStartingPoint = [28,41,37,38,8]
-        preferredStartingPoint = [31,40,8,32,25]
+        preferredStartingPoint = [28,41,37,38,8]
         prefferedAvailable = list(set(preferredStartingPoint) & set(unclaimed_territories))
         
         if len(prefferedAvailable) != 0:
@@ -576,127 +568,6 @@ def handle_redeem_cards(game: Game, bot_state: BotState, query: QueryRedeemCards
         #Redeem cards if i only have 1 territory left remaining
     print(f"[handle_redeem_cards] -- We have redeemed {len(card_sets)} cards")
     return game.move_redeem_cards(query, [(x[0].card_id, x[1].card_id, x[2].card_id) for x in card_sets])
-
-#Always distribute troops to match the max of enemy neighbour and then distribute the reminder towards the weakest player
-def handle_distribute_troops_towards_weakest_new(game: Game, bot_state: BotState, query: QueryDistributeTroops) -> MoveDistributeTroops:
-    """After you redeem cards (you may have chosen to not redeem any), you need to distribute
-    all the troops you have available across your territories. This can happen at the start of
-    your turn or after killing another player.
-    """
-    # We will distribute troops across our border territories.
-    total_troops = game.state.me.troops_remaining
-    distributions = defaultdict(lambda: 0)
-    border_territories = game.state.get_all_border_territories(
-        game.state.get_territories_owned_by(game.state.me.player_id)
-    )
-
-    #Find weakest players
-    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
-    weakest_players = sorted(game.state.players.values(), key=lambda x: sum(
-            [game.state.territories[y].troops for y in game.state.get_territories_owned_by(x.player_id)]
-    ))
-
-    # We need to remember we have to place our matching territory bonus
-    # if we have one.
-    if len(game.state.me.must_place_territory_bonus) != 0:
-        assert total_troops >= 2
-        distributions[game.state.me.must_place_territory_bonus[0]] += 2
-        total_troops -= 2
-
-
-    #First distribute troops to match the highest neighbour in earlier stages of game
-    if len(game.state.recording) < start_attack_mode:
-        territory_clusters = get_territory_clusters(game)
-        no_of_clusters = len(set([x for x in territory_clusters.values()]))
-        cluster_list = [[] for x in range(no_of_clusters)]
-
-        for key,value in territory_clusters.items():
-            cluster_list[value].append(key)
-
-        cluster_list_ordered = sorted(cluster_list,key=lambda x: len(x),reverse=True)
-        non_abandoned_border_territories = game.state.get_all_border_territories(cluster_list_ordered[0])
-
-        print(f"[handle_distribute_troops_towards_weakest] --> Our cluster: {cluster_list_ordered}",flush=True)
-        print(f"[handle_distribute_troops_towards_weakest] --> Non abandoned border territories: {non_abandoned_border_territories}",flush=True)
-
-        border_territories_enemy_difference = []
-        for territory in non_abandoned_border_territories:
-            print(f"[handle_distribute_troops_towards_weakest] --> Territory: {territory}",flush=True)
-            adjuscent_territory = game.state.map.get_adjacent_to(territory) #my_territories
-            adjuscent_enemy = list(set(adjuscent_territory) - set(my_territories))
-            max_enemy_no = max([game.state.territories[x].troops for x in adjuscent_enemy])
-            difference = max_enemy_no - game.state.territories[territory].troops
-
-            if difference >= 1:
-                border_territories_enemy_difference.append((territory,difference))
-
-        #Order according to difference
-        #sorted_list = sorted(list, key=lambda x: (x[0], -x[1])) - Reference sorting using two fields
-        border_territories_enemy_difference = sorted(border_territories_enemy_difference,key=lambda x: x[1],reverse=True)
-
-        print(f"[handle_distribute_troops_towards_weakest] --> We have {total_troops} troops and the difference in our border territories is {border_territories_enemy_difference}",flush=True)
-
-        if len(border_territories_enemy_difference) > 0:
-
-            for territory in border_territories_enemy_difference:
-                if total_troops == 0:
-                    break
-                
-                allocation = territory[1] if total_troops >= territory[1] else total_troops
-                distributions[territory[0]] += allocation
-                total_troops -= allocation
-    
-        if total_troops >= 1:
-            # Always distribute troops towards weakest
-            weakest_players_ordered = find_weakest_players(game) #(player_id,no_of_troops,no_of_cards)
-            for player in weakest_players_ordered:
-                weaker_player_territories = [ t for t in game.state.get_territories_owned_by(player[0]) ]
-
-                territories_adjuscent_to_weaker_player = []
-                for t in weaker_player_territories:
-                    adjuscent = game.state.map.get_adjacent_to(t)
-                    my_territories_adjuscent = list(set(my_territories) & set(adjuscent))
-                    territories_adjuscent_to_weaker_player = territories_adjuscent_to_weaker_player + my_territories_adjuscent
-
-                territories_adjuscent_to_weaker_player = list(set(territories_adjuscent_to_weaker_player))
-                territories_adjuscent_to_weaker_player = sorted(territories_adjuscent_to_weaker_player,key=lambda x: game.state.territories[x].troops,reverse=True)
-
-                #Distribute all reminder troops to territory next to weakes player with the most troops
-                if len(territories_adjuscent_to_weaker_player) > 0:
-                    print(f"[handle_distribute_troops_towards_weakest][NEW] --> Adding {total_troops} troops to {territories_adjuscent_to_weaker_player[0]} beacause it is adjuscent to the weaker enemy {player}. Weaker enemies: {weakest_players_ordered} and it has the most troops ",flush=True)
-                    distributions[territories_adjuscent_to_weaker_player[0]] += total_troops
-                    total_troops = 0
-                    break
-
-    #In later stages distribute to weakest player
-    else:
-        weakest_players_ordered = find_weakest_players(game)
-        for player in weakest_players_ordered:
-            weaker_player_territories = [ t for t in game.state.get_territories_owned_by(player[0]) ]
-
-            territories_adjuscent_to_weaker_player = []
-            for t in weaker_player_territories:
-                adjuscent = game.state.map.get_adjacent_to(t)
-                my_territories_adjuscent = list(set(my_territories) & set(adjuscent))
-                territories_adjuscent_to_weaker_player = territories_adjuscent_to_weaker_player + my_territories_adjuscent
-
-            territories_adjuscent_to_weaker_player = list(set(territories_adjuscent_to_weaker_player))
-            territories_adjuscent_to_weaker_player = sorted(territories_adjuscent_to_weaker_player,key=lambda x: game.state.territories[x].troops,reverse=True)
-
-
-            if len(territories_adjuscent_to_weaker_player) > 0:
-                print(f"[handle_distribute_troops_towards_weakest][NEW] --> Adding {total_troops} troops to {territories_adjuscent_to_weaker_player[0]} beacause it is adjuscent to the weaker enemy {player}. Weaker enemies: {weakest_players_ordered} and it has the most troops ",flush=True)
-                distributions[territories_adjuscent_to_weaker_player[0]] += total_troops
-                total_troops = 0
-                break
-
-
-
-            
-
-    print(f"[handle_distribute_troops_towards_weakest] -- Final distribution is: {dict(distributions)}",flush=True)
-    return game.move_distribute_troops(query, distributions)
-
 
 #Always distribute troops to match the max of enemy neighbour and then distribute the reminder towards the weakest player
 def handle_distribute_troops_towards_weakest(game: Game, bot_state: BotState, query: QueryDistributeTroops) -> MoveDistributeTroops:
