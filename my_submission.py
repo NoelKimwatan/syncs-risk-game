@@ -129,6 +129,147 @@ def find_weakest_players(game:Game):
     #(player_id,no_of_troops,no_of_cards)
     return alive_players_troops
            
+def handle_claim_territory_new(game: Game, bot_state: BotState, query: QueryClaimTerritory) -> MoveClaimTerritory:
+    """At the start of the game, you can claim a single unclaimed territory every turn 
+    until all the territories have been claimed by players."""
+    #America(AM): 1, South America(SAM): 2, Africa(AF): 3, Europ(EU)e: 4, Asia(AS): 5, Australia(AU): 6
+    countries = {
+        0:"AM",1:"AM",2:"AM",3:"AM",4:"AM",5:"AM",6:"AM",7:"AM",8:"AM",
+        30:"SAM",31:"SAM",28:"SAM",29:"SAM",
+        36:"AF",34:"AF",33:"AF",32:"AF",37:"AF",35:"AF",
+        40:"AU",39:"AU",41:"AU",38:"AU",
+        10:"EU",9:"EU",12:"EU",11:"EU",15:"EU",13:"EU",14:"EU",
+        22:"AS",16:"AS",26:"AS",25:"AS",27:"AS",21:"AS",19:"AS",23:"AS",17:"AS",18:"AS",24:"AS",20:"AS",
+    }
+
+    countinents = {
+        "SAM": [30,31,28,29],
+        "AM": [0,1,2,3,4,5,6,7,8],
+        "AF": [32,33,34,35,36,37],
+        "EU": [9,10,11,12,13,14,15],
+        "AS": [16,17,18,19,20,21,22,23,24,25,26,27],
+        "AU": [38,39,40,41]
+    }
+
+    unclaimed_territories = game.state.get_territories_owned_by(None)
+    my_territories = game.state.get_territories_owned_by(game.state.me.player_id)
+    # We will try to always pick new territories that are next to ones that we own,
+    # or a random one if that isn't possible.
+    adjacent_territories = game.state.get_all_adjacent_territories(my_territories)
+
+    # We can only pick from territories that are unclaimed and adjacent to us.
+    available = list(set(unclaimed_territories) & set(adjacent_territories))
+
+    if len(my_territories) == 0:
+        print("[handle_claim_territory_new] -- This is the first selection or pick",flush=True)
+        def territorySelectionPreferenceFunc(territory):
+            first_selection_weight = {
+                30: 10, #South America is the most preffered
+                24: 9,  #Followed by Ausralia
+                40: 8,  #Followed by South Africa
+                32: 8,   #Finally Eastern Australia
+                25: 7   #Finally Eastern Australia
+            }
+            return first_selection_weight[territory]
+        
+        preferredStartingPoint = [31,40,8,32,25]
+
+        prefferedAvailable = list(set(preferredStartingPoint) & set(unclaimed_territories))
+
+        if len(prefferedAvailable) > 0:
+            prefferedAvailable = sorted(prefferedAvailable,key=lambda x: territorySelectionPreferenceFunc(x),reverse=True)
+            selected_territory = prefferedAvailable[0]
+            return game.move_claim_territory(query, selected_territory)
+        else:
+            #Will never happen is selection list is atleast 4 territories, but just a precaution
+            pass
+
+
+    else:
+        print("[handle_claim_territory_new] -- The first territory has already been selected",flush=True)
+
+
+
+    #print("Adjacent territories: ",adjacent_territories,flush=True)
+
+
+    #print("Available territories: ",available)
+    if len(available) != 0:
+
+        # We will pick the one with the most connections to our territories
+        # this should make our territories clustered together a little bit.
+        # def count_adjacent_friendly(x: int) -> int:
+        #     return len(set(my_territories) & set(game.state.map.get_adjacent_to(x)))
+
+        # selected_territory = sorted(available, key=lambda x: count_adjacent_friendly(x), reverse=True)[0]
+
+        #Pick territory that most of its territories are friendly
+        def count_adjacent_friendly(x: int) -> float:
+            return len(set(my_territories) & set(game.state.map.get_adjacent_to(x))) / len(game.state.map.get_adjacent_to(x))
+
+        selected_territory = sorted(available, key=lambda x: count_adjacent_friendly(x), reverse=True)[0]
+    
+    # Or if there are no such territories, we will pick just an unclaimed one with the greatest degree.
+    else:
+        #selected_territory = sorted(unclaimed_territories, key=lambda x: len(game.state.map.get_adjacent_to(x)), reverse=True)[0]
+        #Change to select territory with the least amount of territories bordering it
+        #Change to start by selecting a position in either Africa, South Ameria or Australia
+
+        #Give each preffered territory a weight
+        def territorySelectionPreference(territory):
+            territoryWeight = {
+                30: 10, #South America is the most preffered
+                24: 9,  #Followed by Ausralia
+                40: 8,  #Followed by South Africa
+                32: 8,   #Finally Eastern Australia
+                25: 7   #Finally Eastern Australia
+            }
+            # territoryWeight = {
+            #     28: 10, #South America is the most preffered
+            #     41: 9,  #Followed by Western Ausralia
+            #     37: 8,  #Followed by South Africa
+            #     38: 8,   #Finally Eastern Australia
+            #     8: 7   #Finally Eastern Australia
+            # }
+            # territoryWeight = {
+            #     41:10,  #Most preferred is West Australia
+            #     28:9,   #The South America
+            #     37:8,   #The South Africa
+            #     8:7,    #Wester USA
+            # }
+            # territoryWeight = {
+            #     40:15,   #Wester Australia
+            #     13: 10, #South America is the most preffered
+            #     30: 9,  #Followed by South Africa
+            #     21: 8,  #Followed by Western Ausralia
+            # }
+            return territoryWeight[territory]
+        
+        #preferredStartingPoint = [41,28,37,8]
+        #preferredStartingPoint = [8,28,37,41,38]
+        #preferredStartingPoint = [40,13,30,21]
+        #preferredStartingPoint = [28,41,37,38,8]
+        preferredStartingPoint = [31,40,8,32,25]
+        prefferedAvailable = list(set(preferredStartingPoint) & set(unclaimed_territories))
+        
+        if len(prefferedAvailable) != 0:
+            prefferedAvailable = sorted(prefferedAvailable,key=territorySelectionPreference,reverse=True)
+            selected_territory = prefferedAvailable[0]
+            #print("Preffered territory available",flush=True)
+        else:
+            selected_territory = sorted(unclaimed_territories, key=lambda x: len(game.state.map.get_adjacent_to(x)))[0]
+            #print("Preffered territory NOT available",flush=True)
+
+
+        if len(my_territories) == 0:
+            global home_base
+            home_base = selected_territory
+            print("Home base is: ",home_base,flush=True)
+        
+        #print("Selected territory: ",selected_territory,flush=True)
+        
+    return game.move_claim_territory(query, selected_territory)
+
 def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTerritory) -> MoveClaimTerritory:
     """At the start of the game, you can claim a single unclaimed territory every turn 
     until all the territories have been claimed by players."""
@@ -169,11 +310,11 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
         #Give each preffered territory a weight
         def territorySelectionPreference(territory):
             territoryWeight = {
-                31: 10, #South America is the most preffered
+                29: 10, #South America is the most preffered
                 40: 9,  #Followed by Ausralia
-                8: 8,  #Followed by South Africa
-                32: 8,   #Finally Eastern Australia
-                25: 7   #Finally Eastern Australia
+                36: 8,  #Followed by South Africa
+                8: 8,   #Finally Eastern Australia
+                9: 7   #Finally Eastern Australia
             }
             # territoryWeight = {
             #     28: 10, #South America is the most preffered
@@ -200,7 +341,7 @@ def handle_claim_territory(game: Game, bot_state: BotState, query: QueryClaimTer
         #preferredStartingPoint = [8,28,37,41,38]
         #preferredStartingPoint = [40,13,30,21]
         #preferredStartingPoint = [28,41,37,38,8]
-        preferredStartingPoint = [31,40,8,32,25]
+        preferredStartingPoint = [29,40,36,8,9]
         prefferedAvailable = list(set(preferredStartingPoint) & set(unclaimed_territories))
         
         if len(prefferedAvailable) != 0:
